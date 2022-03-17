@@ -30,7 +30,7 @@ num_batch_init = 2**6
 ############## Training Parameters #######################
 
 # Training epochs
-num_epoch = 10
+num_epoch = 3
 update_print_every = 1
 
 # Neural Network Architecture

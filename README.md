@@ -6,11 +6,9 @@ The reinforcement learning objective is the martingale condition of the stochast
 ## Usage
 
 Setup your PDE, domain, boundary and initial conditions in the DRLPDE_param_problem.py file
-    (Optional) Setup your deep learning parameters in the DRLPDE_param_solver.py file
+(Optional) Setup your deep learning parameters in the DRLPDE_param_solver.py file
 
 Run the DRLPDE_main file from the command line: python DRLPDE_main.py
-
-If you prefer a jupyter notebook environment, use DRLPDE_main.ipynb 
 
 ## Pre-built examples:
 

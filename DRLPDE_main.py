@@ -223,13 +223,13 @@ def main_training(param='DRLPDE_param_problem',
                     step+1, num_epoch, (current_time - start_time) / (step + 1), 
                 (current_time - start_time) / (step + 1) * (num_epoch - step - 1)))
 
-    # Save model 
+    # Save model as pickle file
     if DRLPDE_param.savemodel:
         torch.save(model, "savedmodels/" + DRLPDE_param.savemodel + ".pt")
         print("model saved savedmodels/" + DRLPDE_param.savemodel + ".pt")
 
     # Return the model and domain for plotting
-    return model, domain
+    return DRLPDE_param.savemodel
    
           
 if __name__ == "__main__":
@@ -252,10 +252,14 @@ if __name__ == "__main__":
     else:
         use_cuda = torch.cuda.is_available()
         
-    model, domain = main_training(param, use_cuda)
+    use_model = main_training(param, use_cuda)
           
-    ### Save stuff, plot stuff ###
-    print("Plotting now")
+    ### Plot stuff ###
+    import DRLPDE_postprocessing
+    
+    DRLPDE_postprocessing.plot(param, use_model)
+    
+    
     
     
     

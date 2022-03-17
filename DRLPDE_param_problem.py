@@ -26,7 +26,6 @@ if is_unsteady:
 
 # True solution
 exists_analytic_sol = False
-
 def true_sol(X):
     pass
     
@@ -35,7 +34,7 @@ def true_sol(X):
 # PDE type:
 #     NavierStokes, Elliptic, Parabolic
 #     TODO: safeguard for elliptic + is_unsteady
-pde_type = 'Parabolic'
+pde_type = 'Elliptic'
 
 # Diffusion coefficient
 mu = 0.1
@@ -47,7 +46,7 @@ def forcing(X):
 
 # Drift coefficient for Elliptic/Parabolic PDES
 def drift(X):
-    drift = torch.zeros( (X.size(0), output_dim), device=X.device)
+    drift = torch.zeros( (X.size(0), x_dim), device=X.device)
     return drift
 
 # Reaction coefficient for Elliptic/Parabolic PDES
@@ -85,8 +84,6 @@ def init_con(X):
 
 
 domain = [ [-3,3], [-2,2] ]
-if is_unsteady:
-    domain.append(time_range)
 
 centre1 = [-1,0]
 radius1 = 0.75

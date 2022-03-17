@@ -121,7 +121,7 @@ def move_Walkers_Parabolic(X, model, boundaries, x_dim, mu, dt, num_batch, num_g
     Uold = model(X)
     
     Zt = np.sqrt(dt)*torch.randn((num_batch*num_ghost, x_dim), device=X.device, requires_grad=True)
-    
+
     Xnew = X.repeat(num_ghost,1)  + torch.cat( (-dt*drift(X).detach().repeat(num_ghost,1) + np.sqrt(2*mu)*Zt, 
                                                 -dt*torch.ones((num_batch*num_ghost,1), device=X.device, requires_grad=True)), dim=1)
     
