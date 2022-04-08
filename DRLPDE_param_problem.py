@@ -11,6 +11,8 @@ import numpy as np
 savemodel = 'Test'
 loadmodel = ''
 
+############## Problem Parameters ################
+
 # Physical Dimension
 x_dim = 2
 output_dim = 2
@@ -23,16 +25,22 @@ input_dim = x_dim + is_unsteady
 # Give the time range
 if is_unsteady:
     time_range = [0.0, 1.0]
+    plot_times = [0.0, 0.5, 1.0]
 
 # True solution
 exists_analytic_sol = False
+
+# If there is a true solution, provide contour levels
+plot_levels = np.linspace(-1,1,100)
+
+
 def true_sol(X):
     pass
     
 ################# PDE Coefficients ########################
 
 # PDE type:
-#     NavierStokes, Elliptic, Parabolic
+#     NavierStokes, StokesFlow, Elliptic, Parabolic
 #     TODO: safeguard for elliptic + is_unsteady
 pde_type = 'Elliptic'
 
@@ -68,7 +76,7 @@ def init_con(X):
 
 
 #################  Make the domain  #######################
-#     First define a large rectangular region containing your domain
+#     First define a bounding box containing your domain
 #         Syntax: [ x interval, y interval, z interval ]
 #         Points will be sampled through rejection sampling
 #
@@ -83,7 +91,7 @@ def init_con(X):
 #     Boundary condition is given by a function using pytorch expressions
 
 
-domain = [ [-3,3], [-2,2] ]
+boundingbox = [ [-3,3], [-2,2] ]
 
 centre1 = [-1,0]
 radius1 = 0.75

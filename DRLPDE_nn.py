@@ -2,10 +2,8 @@
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
-import numpy as np
-import math
+
 
 class IncompressibleNN(nn.Module):
     
@@ -36,7 +34,7 @@ class IncompressibleNN(nn.Module):
             u = torch.stack([dadx[:,1], -dadx[:,0]] , dim=1)
             
         elif self.x_dim == 3:
-            e = torch.eye(x_dim, device=dev)
+            e = torch.eye(self.x_dim, device=x.device)
 
             da0dx = torch.autograd.grad(a, x, grad_outputs=e[0,:].repeat(a.size(0), 1), 
                                         create_graph=True, retain_graph = True, only_inputs = True)[0]

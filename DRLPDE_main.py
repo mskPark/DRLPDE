@@ -12,12 +12,10 @@ import torch.optim as optim
 
 ##########   Main execution
 
-def main_training(param='DRLPDE_param_problem',
+def maintraining(param='DRLPDE_param_problem',
                   use_cuda='torch.cuda.is_available()'):
     
     ################# Pre-processing ##################
-    ###
-    ### Unpack and organize parameters
     
     import DRLPDE_nn
     import DRLPDE_param_solver
@@ -35,17 +33,17 @@ def main_training(param='DRLPDE_param_problem',
     ### Use cuda
     dev = torch.device("cuda:0" if use_cuda else "cpu")
 
-    ### Unpack and organize variables related to the PDE problem
-    
-    domain = DRLPDE_param.domain
+    ### Unpack and organize variables related to the PDE problem 
+    boundingbox = DRLPDE_param.boundingbox
     my_bdry = DRLPDE_param.my_bdry
     pde_type = DRLPDE_param.pde_type
     is_unsteady = DRLPDE_param.is_unsteady
     output_dim = DRLPDE_param.output_dim
     
-    ###
+    ### TODO: Safeguard is_unsteady and pde_type
+    ### 
+    
     ### TODO: nn_type in DRLPDE_param_solver to choose the neural network
-  
     nn_param = {'depth': DRLPDE_param_solver.nn_depth,
                 'width': DRLPDE_param_solver.nn_width,
                 'x_dim':DRLPDE_param.x_dim,
@@ -63,28 +61,35 @@ def main_training(param='DRLPDE_param_problem',
     
     eval_model_param={'dt': DRLPDE_param_solver.dt,
                       'forcing': DRLPDE_param.forcing}
-                       
+    
+    ### Import functions
     if is_unsteady:
-        domain.append(DRLPDE_param.time_range)
+        # Include time range in bounding box
+        boundingbox.append(DRLPDE_param.time_range)
         init_con = DRLPDE_param.init_con
         
         if pde_type == 'NavierStokes':
             move_Walkers = DRLPDE_functions.move_Walkers_NS_unsteady
         elif pde_type == 'Parabolic':
             move_Walkers = DRLPDE_functions.move_Walkers_Parabolic
+        elif pde_type == 'StokesFlow':
+            move_Walkers = DRLPDE_functions.move_Walkers_Stokes_unsteady
     else:
         if pde_type == 'NavierStokes':
             move_Walkers = DRLPDE_functions.move_Walkers_NS_steady
         elif pde_type == 'Elliptic':
             move_Walkers = DRLPDE_functions.move_Walkers_Elliptic
+        elif pde_type == 'StokesFlow':
+            move_Walkers = DRLPDE_functions.move_Walkers_Stokes_steady
     
-    if pde_type == 'NavierStokes':
+    if pde_type == 'NavierStokes' or 'StokesFlow':
         evaluate_model = DRLPDE_functions.evaluate_model_NS
     else:
         evaluate_model = DRLPDE_functions.evaluate_model_PDE
         
         move_walkers_param["drift"] = DRLPDE_param.drift
         eval_model_param["reaction"] = DRLPDE_param.reaction
+    
     
     num_walkers = DRLPDE_param_solver.num_walkers
     num_ghost = DRLPDE_param_solver.num_ghost
@@ -106,16 +111,16 @@ def main_training(param='DRLPDE_param_problem',
         num_init = DRLPDE_param_solver.num_init
         num_batch_init = DRLPDE_param_solver.num_batch_init
         lambda_init = DRLPDE_param_solver.lambda_init
-
+    
 
     ################ Preparing the model #################
     
     print("Initializing the model")
     
-    # Make domain
+    # Make boundaries defining the domain
     boundaries = DRLPDE_functions.make_boundaries(my_bdry)
-
-    if pde_type == 'Navier Stokes':
+    
+    if pde_type == 'NavierStokes' or 'StokesFlow':
         MyNeuralNetwork = DRLPDE_nn.IncompressibleNN
     else:
         MyNeuralNetwork = DRLPDE_nn.FeedForwardNN
@@ -136,17 +141,17 @@ def main_training(param='DRLPDE_param_problem',
 
     # Create Walkers and Boundary points 
 
-    RWalkers = DRLPDE_functions.Walker_Data(num_walkers, domain, boundaries)
+    RWalkers = DRLPDE_functions.Walker_Data(num_walkers, boundingbox, boundaries)
     RWalkers_batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
 
     if update_walkers == 'move':
         move_RWalkers = torch.zeros_like(RWalkers.location)
 
-    BPoints = DRLPDE_functions.Boundary_Data(num_bdry, domain, boundaries, is_unsteady)
+    BPoints = DRLPDE_functions.Boundary_Data(num_bdry, boundingbox, boundaries, is_unsteady)
     BPoints_batch = torch.utils.data.DataLoader(BPoints, batch_size=num_batch_bdry, shuffle=True)
 
     if is_unsteady:
-        InitPoints = DRLPDE_functions.Initial_Data(num_init, domain, boundaries, init_con)
+        InitPoints = DRLPDE_functions.Initial_Data(num_init, boundingbox, boundaries, init_con)
         InitPoints_batch = torch.utils.data.DataLoader(InitPoints, batch_size=num_batch_init, shuffle=True)
 
         
@@ -168,17 +173,20 @@ def main_training(param='DRLPDE_param_problem',
             Xnew, Uold, outside = move_Walkers(Xold, model, boundaries, **move_walkers_param)
 
             # Evaluate at new location and average
-            Unew = evaluate_model(Xold, Xnew, model, **eval_model_param).reshape(num_ghost, num_batch, output_dim).mean(0)
+            Unew = evaluate_model(Xold, Xnew, model, **eval_model_param).reshape(num_ghost, 
+                                                                                 num_batch,
+                                                                                 output_dim).mean(0)
             
             # Calculate loss
-            loss = lambda_bell*mseloss(Uold, Unew)
+            loss = lambda_bell*mseloss(Uold, Unew.detach())
             loss.backward()
 
             # If moving walkers
             if update_walkers == 'move':
                 if any(outside):
                     Xnew[:num_batch,:][outside,:] = DRLPDE_functions.generate_interior_points(torch.sum(outside), 
-                                                                                              domain, boundaries)
+                                                                                              boundingbox,
+                                                                                              boundaries).to(dev)
                 move_RWalkers[index,:] = Xnew[:num_batch].detach().cpu()
 
 
@@ -187,16 +195,16 @@ def main_training(param='DRLPDE_param_problem',
             Xbdry = Xbdry.to(dev).requires_grad_(True)
             Ubtrue = Ubtrue.to(dev)
             Ubdry = model(Xbdry)
-            loss = lambda_bdry*mseloss(Ubdry, Ubtrue)
+            loss = lambda_bdry*mseloss(Ubdry, Ubtrue.detach())
             loss.backward()
 
         # Initial Points - Do in batches
         if is_unsteady:
             for Xinit, Uinit_true in InitPoints_batch:
                 Xinit = Xinit.to(dev).requires_grad_(True)
-                #Uinit_true = Uinit_true.to(dev)
+                Uinit_true = Uinit_true.to(dev).detach()
                 Uinit = model(Xinit)
-                loss = lambda_bdry*mseloss(Uinit, Uinit_true.to(dev))
+                loss = lambda_bdry*mseloss(Uinit, Uinit_true)
                 loss.backward()
 
         # Make optimization step
@@ -210,7 +218,7 @@ def main_training(param='DRLPDE_param_problem',
                 RWalkers.location = move_RWalkers
                 RWalkers_Batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
             elif update_walkers == 'remake':
-                RWalkers = DRLPDE_functions.Walker_Data(num_walkers, domain, boundaries)
+                RWalkers = DRLPDE_functions.Walker_Data(num_walkers, boundingbox, boundaries)
                 RWalkers_Batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
 
         # Print statements
@@ -219,16 +227,16 @@ def main_training(param='DRLPDE_param_problem',
         if (step+1) % update_print_every == 0:
             current_time = time.time()
             np.set_printoptions(precision=2)
-            print('step = {0}/{1}, {2:3.1f} s/step, time-to-go:{3:2.0f}s'.format(
+            print('step = {0}/{1}, {2:2.3f} s/step, time-to-go:{3:2.0f}s'.format(
                     step+1, num_epoch, (current_time - start_time) / (step + 1), 
                 (current_time - start_time) / (step + 1) * (num_epoch - step - 1)))
 
     # Save model as pickle file
     if DRLPDE_param.savemodel:
         torch.save(model, "savedmodels/" + DRLPDE_param.savemodel + ".pt")
-        print("model saved savedmodels/" + DRLPDE_param.savemodel + ".pt")
+        print("model saved as savedmodels/" + DRLPDE_param.savemodel + ".pt")
 
-    # Return the model and domain for plotting
+    # Return the model for plotting
     return DRLPDE_param.savemodel
    
           
@@ -252,12 +260,12 @@ if __name__ == "__main__":
     else:
         use_cuda = torch.cuda.is_available()
         
-    use_model = main_training(param, use_cuda)
+    use_model = maintraining(param, use_cuda)
           
     ### Plot stuff ###
     import DRLPDE_postprocessing
     
-    DRLPDE_postprocessing.plot(param, use_model)
+    DRLPDE_postprocessing.postprocessing(param, use_model)
     
     
     

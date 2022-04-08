@@ -1,7 +1,3 @@
-###
-### The functions
-###
-
 import torch
 import math
 import numpy as np
@@ -26,27 +22,35 @@ def make_boundaries(my_bdry):
             boundaries.append( bdry_disk( specs[1], specs[2], specs[3], specs[4] ) )
         elif specs[0] == 'ring':
             boundaries.append( bdry_ring( specs[1], specs[2], specs[3], specs[4] ) )
+        elif specs[0] == 'ball':
+            boundaries.append( bdry_ball( specs[1], specs[2], specs[3] ) )
+        elif specs[0] == 'sphere':
+            boundaries.append( bdry_sphere( specs[1], specs[2], specs[3] ) )
+        elif specs[0] == 'cylinder': ### Add axis to cylinder
+            boundaries.append( bdry_cylinder( specs[1], specs[2], specs[3] ) )
+        elif specs[0] == 'plane':
+            boundaries.append( bdry_plane( specs[1], specs[2], specs[3], specs[4] ) )
     
     return boundaries
                               
-def generate_interior_points(num_walkers, domain, boundaries):
+def generate_interior_points(num_walkers, boundingbox, boundaries):
     ### Generate points inside the domain
     
-    X = torch.empty( (num_walkers, len(domain)) )
+    X = torch.empty( (num_walkers, len(boundingbox)) )
     
-    for ii in range(len(domain)):
-        X[:,ii] = (domain[ii][1] - domain[ii][0])*torch.rand( (num_walkers) ) + domain[ii][0]
+    for ii in range(len(boundingbox)):
+        X[:,ii] = (boundingbox[ii][1] - boundingbox[ii][0])*torch.rand( (num_walkers) ) + boundingbox[ii][0]
         
     outside = torch.zeros( X.size(0), dtype=torch.bool)
     for bdry in boundaries:
         outside += bdry.dist_to_bdry(X) > 0
     
     if any(outside):
-        X[outside,:] = generate_interior_points(torch.sum(outside), domain, boundaries)
+        X[outside,:] = generate_interior_points(torch.sum(outside), boundingbox, boundaries)
         
     return X
 
-def generate_boundary_points(num_bdry, domain, boundaries, is_unsteady):
+def generate_boundary_points(num_bdry, boundingbox, boundaries, is_unsteady):
     ### Generate points along the boundary
     
     points_per_bdry = []
@@ -54,20 +58,20 @@ def generate_boundary_points(num_bdry, domain, boundaries, is_unsteady):
     
     # Generate num_bdry points for each boundary
     for bdry in boundaries:
-        X_in_bdry, U_in_bdry =  bdry.generate_boundary(num_bdry, domain, is_unsteady)
+        X_in_bdry, U_in_bdry =  bdry.generate_boundary(num_bdry, boundingbox, is_unsteady)
         points_per_bdry.append( X_in_bdry )
         utrue_per_bdry.append( U_in_bdry )
     
     Xbdry = torch.cat( points_per_bdry, dim=0)
-    Ubdry = torch.cat( utrue_per_bdry, dim=0)
+    Ubdry_true = torch.cat( utrue_per_bdry, dim=0)
     
     # Sample from above boundary points
     indices = torch.multinomial( torch.linspace( 0, len(boundaries)*num_bdry - 1, len(boundaries)*num_bdry ), num_bdry)
     
     Xbdry = Xbdry[indices,:]
-    Ubdry = Ubdry[indices,:]
+    Ubdry_true = Ubdry_true[indices,:]
     
-    return Xbdry, Ubdry
+    return Xbdry, Ubdry_true
 
 ######
 ###### Problem dependent functions
@@ -96,6 +100,33 @@ def move_Walkers_NS_unsteady(X, model, boundaries, x_dim, mu, dt, num_batch, num
     Zt = np.sqrt(dt)*torch.randn((num_batch*num_ghost, x_dim), device=X.device, requires_grad=True)
     
     Xnew = X.repeat(num_ghost,1)  + torch.cat( (-dt*Uold.detach().repeat(num_ghost,1) + np.sqrt(2*mu)*Zt, 
+                                                -dt*torch.ones((num_batch*num_ghost,1), device=X.device, requires_grad=True)), dim=1)
+    
+    Xnew, outside = exit_condition_unsteady(X.repeat(num_ghost,1), Xnew, boundaries, tol)
+    
+    return Xnew, Uold, outside[:num_batch]
+
+def move_Walkers_Stokes_steady(X, model, boundaries, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
+    ### Move walkers
+    
+    Uold = model(X)
+    
+    Zt = np.sqrt(dt)*torch.randn((num_batch*num_ghost, x_dim), device=X.device, requires_grad=True)
+    
+    Xnew = X.repeat(num_ghost,1) + np.sqrt(2*mu)*Zt
+    
+    Xnew, outside = exit_condition_steady(X.repeat(num_ghost,1), Xnew, boundaries, tol)
+    
+    return Xnew, Uold, outside[:num_batch]
+
+def move_Walkers_Stokes_unsteady(X, model, boundaries, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
+    ### Move walkers
+    
+    Uold = model(X)
+    
+    Zt = np.sqrt(dt)*torch.randn((num_batch*num_ghost, x_dim), device=X.device, requires_grad=True)
+    
+    Xnew = X.repeat(num_ghost,1)  + torch.cat( ( np.sqrt(2*mu)*Zt, 
                                                 -dt*torch.ones((num_batch*num_ghost,1), device=X.device, requires_grad=True)), dim=1)
     
     Xnew, outside = exit_condition_unsteady(X.repeat(num_ghost,1), Xnew, boundaries, tol)
@@ -172,14 +203,18 @@ def exit_condition_unsteady(Xold, Xnew, boundaries, tol):
         outside_bdry = bdry.dist_to_bdry(Xnew) > 0
         if torch.any(outside_bdry) > 0:
             ### Bisection to get close to exit location
-            ### TODO: should we take a point on the boundary (by projecting or something)
-            
+            ### Question: 
+            ###     Should we take a point on the boundary (by projecting or something)
+            ###     or is within tol good enough?
             Xnew[outside_bdry,:] = find_bdry_exit(Xold[outside_bdry,:], Xnew[outside_bdry,:], bdry, tol)
 
         outside += outside_bdry
     
     ### Check for time = 0
     ### Note: This prioritizes time exit over bdry exit
+    ### Question: 
+    ###     Should we take a point at the initial time (by projecting or something)
+    ###     or is within tol good enough?
     hit_initial = Xnew[:,-1] < 0
     Xnew[hit_initial,:] = find_time_exit(Xold[hit_initial,:], Xnew[hit_initial,:], tol)
 
@@ -207,18 +242,18 @@ def find_bdry_exit(Xold, Xnew, bdry, tol):
             
 def find_time_exit(Xold, Xnew, tol):
     ### Bisection algorithm to find the time exit up to a tolerance
+    
     Xmid = (Xnew + Xold)/2
+
     above_tol = Xmid[:,-1] > tol
-    below_tol = Xmid[:,-1] < tol
+    below_tol = Xmid[:,-1] < -tol
+
     if torch.sum(above_tol + below_tol) > 0:
-        Xnew[above_tol,:] = Xmid[above_tol,:]
-        Xold[below_tol,:] = Xmid[below_tol,:]
+        Xnew[below_tol,:] = Xmid[below_tol,:]
+        Xold[above_tol,:] = Xmid[above_tol,:]
         
-        Xmid = find_time_exit(Xold[above_tol + below_tol,:], Xnew[above_tol + below_tol,:], tol)
-    
-    # Project the time to the initial time?
-    #Xmid[:,-1] = time_range[0]
-    
+        Xmid[above_tol + below_tol,:] = find_time_exit(Xold[above_tol + below_tol,:], Xnew[above_tol + below_tol,:], tol)
+
     return Xmid
 
 ##################      
@@ -253,13 +288,13 @@ class bdry_disk:
             self.angles = angles
             
             
-    def generate_boundary(self, num_bdry, domain, is_unsteady):
+    def generate_boundary(self, num_bdry, boundingbox, is_unsteady):
         theta = (self.angles[1] - self.angles[0])*torch.rand((num_bdry)) + self.angles[0]
         
         if is_unsteady:
             Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                                  self.radius*torch.sin(theta) + self.centre[1],
-                                (domain[-1][1] - domain[-1][0])*torch.rand((num_bdry)) + domain[-1][0]),dim=1 )  
+                                (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )  
         else:
             Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                              self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
@@ -270,22 +305,20 @@ class bdry_disk:
             
     def dist_to_bdry(self, X):
         ### Signed distance to boundary
-        ### positive = outside domain
-        ### negative = inside domain
-        distance = ( self.radius - torch.norm( X[:,:2] - self.centre.to(X.device),dim=1) )
+        ### positive = inside domain
+        ### negative = outside domain
+
+        distance = ( torch.norm(X[:,:2] - self.centre.to(X.device),dim=1) - self.radius )
         return distance
     
-    #def closest_point(self, X):
-        ### Find the closest point on the boundary by making the radius
-        #Xnew = X/torch.norm( X[:,:2] - self.centre.to(X.device), dim=1)
-        #return Xnew
-    
     def plot_bdry(self, num_bdry):
+        ### Give uniformly spaced points along the boundary to plot
         theta = torch.linspace(self.angles[0], self.angles[1], num_bdry)
         Xplot = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                              self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
         
         return Xplot
+
 class bdry_ring:
     ### Class structure for a circle boundary, the inside being the domain
     bdry_type = 'ring'
@@ -311,13 +344,13 @@ class bdry_ring:
             self.angles = angles
             
             
-    def generate_boundary(self, num_bdry, domain, is_unsteady):
+    def generate_boundary(self, num_bdry, boundingbox, is_unsteady):
         theta = (self.angles[1] - self.angles[0])*torch.rand((num_bdry)) + self.angles[0]
         
         if is_unsteady:
             Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                                  self.radius*torch.sin(theta) + self.centre[1],
-                                (domain[-1][1] - domain[-1][0])*torch.rand((num_bdry)) + domain[-1][0]),dim=1 )  
+                                (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )  
         else:
             Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                              self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
@@ -328,15 +361,12 @@ class bdry_ring:
             
     def dist_to_bdry(self, X):
         ### Signed distance to boundary
-        ### positive = outside domain
-        ### negative = inside domain
-        distance = ( torch.norm( X[:,:2] - self.centre.to(X.device),dim=1) - self.radius )
+        ### positive = inside domain
+        ### negative = outside domain
+
+        distance = (self.radius - torch.norm( X[:,:2] - self.centre.to(X.device),dim=1))
+
         return distance
-    
-    #def closest_point(self, X):
-        ### Find the closest point on the boundary by making the radius
-        #Xnew = X/torch.norm( X[:,:2] - self.centre.to(X.device), dim=1)
-        #return Xnew
     
     def plot_bdry(self, num_bdry):
         theta = torch.linspace(self.angles[0], self.angles[1], num_bdry)
@@ -348,7 +378,7 @@ class bdry_ring:
     
 class bdry_line:
     ### Class structure for a line boundary
-    ###       normal vector points outside
+    ###       normal vector points inside
     
     bdry_type = 'line'
     
@@ -361,11 +391,11 @@ class bdry_line:
         
         self.endpoints = torch.tensor(endpoints)
         
-    def generate_boundary(self, num_bdry, domain, is_unsteady):
+    def generate_boundary(self, num_bdry, boundingbox, is_unsteady):
         
         if is_unsteady:
             Xbdry = torch.cat( ( (self.endpoints[1] - self.endpoints[0] )*torch.rand((num_bdry,1)) + self.endpoints[0],
-                                 (domain[-1][1] - domain[-1][0])*torch.rand((num_bdry,1)) + domain[-1][0]), dim=1)
+                                 (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry,1)) + boundingbox[-1][0]), dim=1)
         else:    
             Xbdry = ( self.endpoints[1] - self.endpoints[0] )*torch.rand((num_bdry,1)) + self.endpoints[0]
  
@@ -375,31 +405,199 @@ class bdry_line:
     
     def dist_to_bdry(self, X):
         ### Signed distance to boundary
-        ### positive = outside domain
-        ### negative = inside domain
+        ### positive = inside domain
+        ### negative = outside domain
         distance = torch.sum( self.normal.to(X.device)*X[:,:2], dim=1) + self.constant
         
         return distance
-    
-    #def closest_point(self, X):
-        ### Find the closest point given an (x,y) by going in the normal direction
-        #distance = dist_to_bdry(X)
-        #X[:,:2] = X[:,:2] + distance[:,None]*self.normal.to(X.device)
-        
-        #return X
     
     def plot_bdry(self, num_bdry):
         Xplot = ( self.endpoints[1] - self.endpoints[0] )*torch.linspace(0, 1, num_bdry)[:,None] + self.endpoints[0]
         
         return Xplot
 
-##################  Dataloader   #######################
+################## 3D Boundaries #######################
+
+class bdry_ball:
+    ### Class structure for a 3D solid ball boundary, the domain being outside the ball
     
+    bdry_type = 'ball'
+    
+    def __init__(self, centre, radius, bdry_cond):
+        ### Centre and Radius
+        self.centre = torch.tensor( centre )
+        self.radius = radius
+
+        self.bdry_cond = bdry_cond
+        
+            
+    def generate_boundary(self, num_bdry, boundingbox, is_unsteady):
+        ### Spherical coordinates
+        ###
+        ### x = radius*sin(phi)*cos(theta)
+        ### y = radius*sin(phi)*sin(theta)
+        ### z = radius*cos(phi)
+
+        theta = 2*math.pi*torch.rand( (num_bdry))
+        phi =  math.pi*torch.rand((num_bdry))
+        
+        if is_unsteady:
+            Xbdry = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
+                                 self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
+                                 self.radius*torch.cos(phi) + self.centre[2]
+                                (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )  
+        else:
+            Xbdry = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
+                                 self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
+                                 self.radius*torch.cos(phi) + self.centre[2]), dim=1 )  
+        Utrue = self.bdry_cond(Xbdry)
+        
+        return Xbdry, Utrue
+            
+    def dist_to_bdry(self, X):
+        ### Signed distance to boundary
+        ### positive = inside domain
+        ### negative = outside domain
+
+        distance = ( torch.norm( X[:,:3] - self.centre.to(X.device),dim=1) - self.radius )
+        return distance
+    
+class bdry_sphere:
+    ### Class structure for a 3D hollow sphere boundary, the domain being inside the sphere
+    
+    bdry_type = 'sphere'
+    
+    def __init__(self, centre, radius, bdry_cond):
+        ### Centre and Radius
+        self.centre = torch.tensor( centre )
+        self.radius = radius
+
+        self.bdry_cond = bdry_cond
+        
+            
+    def generate_boundary(self, num_bdry, boundingbox, is_unsteady):
+        ### Spherical coordinates
+        ###
+        ### x = radius*sin(phi)*cos(theta)
+        ### y = radius*sin(phi)*sin(theta)
+        ### z = radius*cos(phi)
+
+        theta = 2*math.pi*torch.rand( (num_bdry))
+        phi =  math.pi*torch.rand((num_bdry))
+        
+        if is_unsteady:
+            Xbdry = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
+                                 self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
+                                 self.radius*torch.cos(phi) + self.centre[2]
+                                (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )  
+        else:
+            Xbdry = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
+                                 self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
+                                 self.radius*torch.cos(phi) + self.centre[2]), dim=1 )  
+        Utrue = self.bdry_cond(Xbdry)
+        
+        return Xbdry, Utrue
+            
+    def dist_to_bdry(self, X):
+        ### Signed distance to boundary
+        ### positive = inside domain
+        ### negative = outside domain
+
+        distance = ( self.radius - torch.norm( X[:,:3] - self.centre.to(X.device),dim=1) )
+        return distance
+    
+class bdry_cylinder:
+    ### Class structure for inside a cylindrical shell
+    ### Centre: One end of the cylinder
+    ### Points in z-direction =
+
+    ### todo include axis: Points in direction, length of axis determines how long
+    
+    bdry_type = 'cylinder'
+    
+    def __init__(self, centre, radius, axis, bdry_cond):
+        ### Centre and Radius
+        self.centre = torch.tensor( centre )
+        self.radius = radius
+        #self.axis = torch.tensor( axis )
+
+        self.bdry_cond = bdry_cond
+        
+            
+    def generate_boundary(self, num_bdry, boundingbox, is_unsteady):
+        ### Cylindrical coordinates
+        ###
+        ### x = radius*cos(theta)
+        ### y = radius*sin(theta)
+        ### z = z
+
+        theta = 2*math.pi*torch.rand( (num_bdry))
+        
+        if is_unsteady:
+            Xbdry = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
+                                 self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
+                                (boundingbox[-2][1] - boundingbox[-2][0])*torch.rand((num_bdry)) + boundingbox[-2][0],
+                                (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )  
+        else:
+            Xbdry = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
+                                 self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
+                                 (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]), dim=1 )  
+        Utrue = self.bdry_cond(Xbdry)
+        
+        return Xbdry, Utrue
+            
+    def dist_to_bdry(self, X):
+        ### Signed distance to boundary
+        ### positive = outside domain
+        ### negative = inside domain
+        distance = ( self.radius - torch.norm( X[:,:2] - self.centre.to(X.device),dim=1) )
+        return distance
+
+class bdry_plane:
+    ### Class structure for a plane in 3D space
+    ### normal vector points inside
+    ### corners should be opposite
+
+    bdry_type = 'plane'
+    
+    def __init__(self, point, normal, corners, bdry_cond):
+        self.point = torch.tensor(  point )
+        self.normal = torch.tensor( normal )
+        self.constant = -sum( self.normal*self.point )
+        
+        self.corners = torch.tensor( corners )
+        
+        self.bdry_cond = bdry_cond
+        
+    def generate_boundary(self, num_bdry, boundingbox, is_unsteady):
+        
+        if is_unsteady:
+            Xbdry = torch.cat( ( (self.endpoints[1] - self.endpoints[0] )*torch.rand((num_bdry,1)) + self.endpoints[0],
+                                 (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry,1)) + boundingbox[-1][0]), dim=1)
+        else:    
+            Xbdry = ( self.corners[1] - self.corners[0] )*torch.rand((num_bdry,1)) + self.corners[0]
+ 
+        Utrue = self.bdry_cond(Xbdry)
+
+        return Xbdry, Utrue
+    
+    def dist_to_bdry(self, X):
+        ### Signed distance to boundary
+        ### positive = inside domain
+        ### negative = outside domain
+        distance = torch.sum( self.normal.to(X.device)*X[:,:3], dim=1) + self.constant
+        
+        return distance
+
+##################               #######################
+##################  Dataloader   #######################
+##################               #######################
+
 class Walker_Data(torch.utils.data.Dataset):
     
-    def __init__(self, num_walkers, domain, boundaries):
+    def __init__(self, num_walkers, boundingbox, boundaries):
         
-        Xold = generate_interior_points(num_walkers, domain, boundaries)
+        Xold = generate_interior_points(num_walkers, boundingbox, boundaries)
         #region = close_to_region(Xold)
         
         self.location = Xold
@@ -417,9 +615,9 @@ class Walker_Data(torch.utils.data.Dataset):
         
 class Boundary_Data(torch.utils.data.Dataset):
     
-    def __init__(self, num_bdry, domain, boundaries, is_unsteady):
+    def __init__(self, num_bdry, boundingbox, boundaries, is_unsteady):
         
-        Xbdry, Ubdry = generate_boundary_points(num_bdry, domain, boundaries, is_unsteady)
+        Xbdry, Ubdry = generate_boundary_points(num_bdry, boundingbox, boundaries, is_unsteady)
         
         self.location = Xbdry
         self.num_pts = num_bdry
@@ -433,9 +631,9 @@ class Boundary_Data(torch.utils.data.Dataset):
     
 class Initial_Data(torch.utils.data.Dataset):
     
-    def __init__(self, num_init, domain, boundaries, init_con):
+    def __init__(self, num_init, boundingbox, boundaries, init_con):
         
-        Xinit = generate_interior_points(num_init, domain, boundaries)
+        Xinit = generate_interior_points(num_init, boundingbox, boundaries)
         Xinit[:,-1] = 0
         
         self.location = Xinit

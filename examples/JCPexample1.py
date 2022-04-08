@@ -1,7 +1,7 @@
 ###
-### Example 1: Laplace equation on annulus with harmonic function as boundary condition
-###            u(x,y) = log(x^2 + y^2)
-###            In a bounded domain not including the origin
+### Journal of Computational Physics Submission
+###     Deep Reinforcement Learning of Viscous Incompressible Flow
+###     Example 1: Stokes Flow in Disk
 ###
 
 import torch
@@ -10,7 +10,7 @@ import numpy as np
 
 ############## Save model and/or Load model ##############
 
-savemodel = 'example1'
+savemodel = 'JCPexample1'
 loadmodel = ''
 
 # Physical Dimension
@@ -22,18 +22,20 @@ output_dim = 2
 is_unsteady = False
 input_dim = x_dim + is_unsteady
 
-# True solution
+# Is there a true solution
 exists_analytic_sol = True
+# If there is a true solution, provide contour levels
+plot_levels = np.linspace(-1,1,100)
+
 def true_solution(X):
-    u = log( X[:,0]**2 + X[:,1]**2 )
+    u = torch.stack( ( -X[:,1], X[:,0] ), dim=1)
     return u
 
 
 ################# PDE Coefficients ########################
 
 # PDE type:
-#     NavierStokes, Elliptic, Parabolic
-pde_type = 'Elliptic'
+pde_type = 'StokesFlow'
 
 # Diffusion coefficient
 mu = 1
@@ -43,16 +45,6 @@ def forcing(X):
     f = torch.zeros( (X.size(0), output_dim), device=X.device)
     return f
 
-# Drift coefficient for Elliptic/Parabolic PDES
-def drift(X):
-    drift = torch.zeros( (X.size(0), output_dim), device=X.device)
-    return drift
-
-# Reaction coefficient for Elliptic/Parabolic PDES
-def reaction(X):
-    reaction = torch.zeros( (X.size(0), output_dim), device=X.device)
-    return reaction
-
 ################# Boundary and Initial Conditions ###########
 # Use pytorch expressions to make boundary and initial conditions 
 #
@@ -60,7 +52,8 @@ def reaction(X):
 #     ensure the correct bdry_con is called when defining the boundaries
 
 def bdry_con(X):
-    return torch.zeros( (X.size(0), output_dim), device=X.device )
+    u = torch.stack( ( -X[:,1], X[:,0] ), dim=1)
+    return u
 
 #################  Make the domain  #######################
 #     First define a bounding box containing your domain
@@ -78,24 +71,13 @@ def bdry_con(X):
 #     Boundary condition is given by a function using pytorch expressions
 
 
-boundingbox = [ [-3,3], [-2,2] ]
+boundingbox = [ [-1,1], [-1,1] ]
 
-centre1 = [-1,0]
-radius1 = 0.75
+centre1 = [0,0]
+radius1 = 1.0
 endpoints1 = []
 
-bdry1 = [ 'disk', centre1, radius1, endpoints1, bdry_con ]
+bdry1 = [ 'ring', centre1, radius1, endpoints1, bdry_con ]
 
-point2 = [-3,1]
-normal2 = [-1,3]
-endpoints2 = [ [-3,1], [0,2] ]
-
-bdry2 = [ 'line', point2, normal2, endpoints2, bdry_con ]
-
-inlet_left   = [ 'line', [-3,-2], [-1,0], [ [-3,-2], [-3,1] ], bdry_con ]
-wall_top     = [ 'line', [-3,2],  [0,1],  [ [0,2],   [3,2]  ], bdry_con ]
-outlet_right = [ 'line', [3, -2], [1,0],  [ [3,0],   [3,2]  ], bdry_con ]
-wall_bot     = [ 'line', [0, -1], [1,-3], [ [-3,-2], [3,0]  ], bdry_con ]
-
-my_bdry = [bdry1, bdry2, inlet_left, wall_top, outlet_right, wall_bot ]
+my_bdry = [ bdry1 ]
 

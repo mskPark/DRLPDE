@@ -7,9 +7,9 @@ dt = 1e-4
 tol = 1e-6
 
 # Number of walkers
-num_walkers = 2**10
+num_walkers = 2**12
 num_ghost = 256
-num_batch = 2**18
+num_batch = 2**12
 
 # Update walkers
 # Options: 
@@ -30,8 +30,8 @@ num_batch_init = 2**8
 ############## Training Parameters #######################
 
 # Training epochs
-num_epoch =  500
-update_print_every = 50
+num_epoch =  5000
+update_print_every = 500
 
 # Neural Network Architecture
 nn_depth = 60
@@ -47,3 +47,12 @@ learning_rate = 1e-3
 adam_beta = (0.9,0.999)
 weight_decay = 0
 
+############## Results ###############################
+
+Time to train: 598.5 seconds
+L2 error is 2.777e-02
+Linf error is 1.649e-02
+
+Polar coordinate calculation
+L2 Error = 0.0161
+Linf Error = 0.0164
