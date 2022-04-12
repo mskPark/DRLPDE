@@ -78,6 +78,10 @@ radius1 = 1.0
 
 bdry1 = [ 'ball3D', centre1, radius1, bdry_con ]
 
-my_bdry = [ bdry1 ]
-
-is_periodic = False
+sphere1 = {   'type':'sphere',
+            'centre': [0,0,0],
+            'radius': 1.0,
+            'boundary_condition':bdry_con }
+            
+list_of_dirichlet_boundaries = [sphere1]
+list_of_periodic_boundaries =[]

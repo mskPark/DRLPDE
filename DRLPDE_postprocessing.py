@@ -17,7 +17,7 @@ num_plot_bdry = 64
 num_plot_rand = 256
 
 import DRLPDE_nn
-import DRLPDE_functions
+import DRLPDE_functions.DefineDomain
 
 ###
 ### PostProcessing function
@@ -51,7 +51,8 @@ def postprocessing(param='DRLPDE_param_problem',
         print("Loading parameters from " + param + '.py')
         
     boundingbox = DRLPDE_param.boundingbox
-    my_bdry = DRLPDE_param.my_bdry
+    list_of_dirichlet_boundaries = DRLPDE_param.list_of_dirichlet_boundaries
+    list_of_periodic_boundaries = DRLPDE_param.list_of_periodic_boundaries
     output_dim = DRLPDE_param.output_dim
     exists_analytic_sol = DRLPDE_param.exists_analytic_sol
     is_unsteady = DRLPDE_param.is_unsteady
@@ -68,7 +69,9 @@ def postprocessing(param='DRLPDE_param_problem',
         plot_levels = 100
         plot_ticks = 3
     
-    boundaries = DRLPDE_functions.make_boundaries(my_bdry)
+    Domain = DRLPDE_functions.DefineDomain.Domain(is_unsteady, boundingbox, 
+                                                  list_of_dirichlet_boundaries,
+                                                  list_of_periodic_boundaries)
     
     ###
     ### Plot the domain
@@ -77,7 +80,7 @@ def postprocessing(param='DRLPDE_param_problem',
 
     Xbdry = []
     
-    for bdry in boundaries:
+    for bdry in Domain.boundaries:
         X_each_bdry = bdry.plot_bdry(num_plot_bdry)
         Xbdry.append( X_each_bdry )
         

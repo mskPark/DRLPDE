@@ -8,6 +8,8 @@ import torch
 import math
 import numpy as np
 
+global lidspeed
+
 ############## Save model and/or Load model ##############
 
 savemodel = 'JCPexample5'
@@ -16,6 +18,8 @@ loadmodel = ''
 # Physical Dimension
 x_dim = 2
 output_dim = 2
+
+lidspeed = 1.0
 
 # Steady   or Unsteady
 # Elliptic or Parabolic
@@ -58,32 +62,36 @@ def bdry_con_wall(X):
 def bdry_con_lid(X):
     u = torch.zeros( (X.size(0), output_dim), device=X.device)
 
-    u[:,0] = 1.0
+    u[:,0] = lidspeed
     return u
 
 #################  Make the domain  #######################
-#     First define a bounding box containing your domain
-#         Syntax: [ x interval, y interval, z interval ]
-#         Points will be sampled through rejection sampling
-#
-#     Define each boundary
-#         lines: [ 'line', point, normal, endpoints, bdry_condition ]
-#         disk:  [ 'disk', centre, radius, endpoints, bdry_condition]
-#         
-#     Intersections of boundaries must be input manually
-#         These should be ordered as points will be sampled from first to second
-#         only 2 intersection points allowed
-#         
-#     Boundary condition is given by a function using pytorch expressions
-
 
 boundingbox = [ [-1,1], [-1,1] ]
 
-wall_left   = [ 'line', [-1,-1], [1,0], [ [-1,-1], [-1,1] ], bdry_con_wall ]
-lid_top     = [ 'line', [-1,1],  [0,-1],  [ [-1,1],   [1,1]  ], bdry_con_lid ]
-wall_right  = [ 'line', [1, -1], [-1,0],  [ [1,-1],   [1,1]  ], bdry_con_wall ]
-wall_bot    = [ 'line', [-1, -1], [0,1], [ [-1,-1], [1,-1]  ], bdry_con_wall ]
+wall_left = {'type':'line',
+             'point': [-1,-1],
+             'normal': [1,0],
+             'endpoints': [ [-1,-1], [-1,1] ],
+             'boundary_condition': bdry_con_wall }
 
-my_bdry = [wall_left, lid_top, wall_right, wall_bot ]
+lid_top = { 'type':'line',
+             'point': [-1,1],
+             'normal': [0,-1],
+             'endpoints': [ [-1,1],   [1,1]  ],
+             'boundary_condition': bdry_con_lid }
 
-is_periodic = False
+wall_right= {'type':'line',
+             'point': [1, -1],
+             'normal':  [-1,0],
+             'endpoints':  [ [1,-1],   [1,1]  ],
+             'boundary_condition': bdry_con_wall }
+
+wall_bot = {'type':'line',
+             'point': [-1,-1],
+             'normal': [0,1],
+             'endpoints': [ [-1,-1], [1,-1] ],
+             'boundary_condition': bdry_con_wall }
+
+list_of_dirichlet_boundaries = [wall_left, lid_top, wall_right, wall_bot ]
+list_of_periodic_boundaries =[]

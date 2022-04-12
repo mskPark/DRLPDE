@@ -70,27 +70,19 @@ def bdry_con(X):
     return u
 
 #################  Make the domain  #######################
-#     First define a bounding box containing your domain
-#         Syntax: [ x interval, y interval, z interval ]
-#         Points will be sampled through rejection sampling
-#
-#     Define each boundary
-#         lines: [ 'line', point, normal, endpoints, bdry_condition ]
-#         disk:  [ 'disk', centre, radius, endpoints, bdry_condition]
 
 boundingbox = [ [-1,1], [-1,1], [0,1] ]
 
-cylinder1 = [ 'cylinder', [0,0], cylinder_radius, bdry_con ]
-#plane_bot = [ 'plane', [0,0,0], [0,0,1], [ [-1, -1, 0], [1,1,0] ], None ]
-#plane_top = [ 'plane', [0,0,1], [0,0,-1], [ [-1,-1, 1], [1,1,1] ],  None ]
+periodic1 = { 'variable':'z', 
+              'base':0,
+              'top':1 }
 
-my_bdry = [ cylinder1 ]
 
-### Periodic domain
-is_periodic = True
-index = 2
-z_height1 = 0
-z_height2 = 1
-
-my_periodic_bdry = [index, z_height1, z_height2]
-
+cylinder1 = {'type':'cylinder',
+            'centre': [0,0,0],
+            'radius': 1.0,
+            'length': 1.0,
+            'boundary_condition':bdry_con }
+            
+list_of_dirichlet_boundaries = [cylinder1]
+list_of_periodic_boundaries =[periodic1]

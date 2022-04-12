@@ -19,7 +19,8 @@ def maintraining(param='DRLPDE_param_problem',
     
     import DRLPDE_nn
     import DRLPDE_param_solver
-    import DRLPDE_functions
+    import DRLPDE_functions.DefineDomain
+    import DRLPDE_functions.EvaluateWalkers
     
     import importlib
     
@@ -33,21 +34,17 @@ def maintraining(param='DRLPDE_param_problem',
     ### Use cuda
     dev = torch.device("cuda:0" if use_cuda else "cpu")
 
-    ### Unpack and organize variables related to the PDE problem 
+    ### Unpack and organize variables related to the Problem
+    # TODO: Safeguard is_unsteady and pde_type
+    # TODO: nn_type in DRLPDE_param_solver to choose the neural network
+
     boundingbox = DRLPDE_param.boundingbox
-    my_bdry = DRLPDE_param.my_bdry
+    list_of_dirichlet_boundaries = DRLPDE_param.list_of_dirichlet_boundaries
+    list_of_periodic_boundaries = DRLPDE_param.list_of_periodic_boundaries
     pde_type = DRLPDE_param.pde_type
     is_unsteady = DRLPDE_param.is_unsteady
     output_dim = DRLPDE_param.output_dim
-
-    is_periodic = DRLPDE_param.is_periodic
-    if is_periodic:
-        my_periodic_bdry = DRLPDE_param.my_periodic_bdry
     
-    ### TODO: Safeguard is_unsteady and pde_type
-    ### 
-    
-    ### TODO: nn_type in DRLPDE_param_solver to choose the neural network
     nn_param = {'depth': DRLPDE_param_solver.nn_depth,
                 'width': DRLPDE_param_solver.nn_width,
                 'x_dim':DRLPDE_param.x_dim,
@@ -73,28 +70,28 @@ def maintraining(param='DRLPDE_param_problem',
         init_con = DRLPDE_param.init_con
         
         if pde_type == 'NavierStokes':
-            move_Walkers = DRLPDE_functions.move_Walkers_NS_unsteady
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_NS_unsteady
         elif pde_type == 'Parabolic':
-            move_Walkers = DRLPDE_functions.move_Walkers_Parabolic
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Parabolic
         elif pde_type == 'StokesFlow':
-            move_Walkers = DRLPDE_functions.move_Walkers_Stokes_unsteady
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Stokes_unsteady
     else:
         if pde_type == 'NavierStokes':
-            move_Walkers = DRLPDE_functions.move_Walkers_NS_steady
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_NS_steady
         elif pde_type == 'Elliptic':
-            move_Walkers = DRLPDE_functions.move_Walkers_Elliptic
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Elliptic
         elif pde_type == 'StokesFlow':
-            move_Walkers = DRLPDE_functions.move_Walkers_Stokes_steady
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Stokes_steady
     
     if pde_type == 'NavierStokes' or 'StokesFlow':
-        evaluate_model = DRLPDE_functions.evaluate_model_NS
+        evaluate_model = DRLPDE_functions.EvaluateWalkers.evaluate_model_NS
     else:
-        evaluate_model = DRLPDE_functions.evaluate_model_PDE
+        evaluate_model = DRLPDE_functions.EvaluateWalkers.evaluate_model_PDE
         
         move_walkers_param["drift"] = DRLPDE_param.drift
         eval_model_param["reaction"] = DRLPDE_param.reaction
     
-    
+    ### Organize parameters related to deep learning solver
     num_walkers = DRLPDE_param_solver.num_walkers
     num_ghost = DRLPDE_param_solver.num_ghost
     num_batch = DRLPDE_param_solver.num_batch
@@ -121,15 +118,16 @@ def maintraining(param='DRLPDE_param_problem',
     
     print("Initializing the model")
     
-    # Make boundaries defining the domain
-    boundaries = DRLPDE_functions.boundaries(list_of_bdry, is_periodic, periodic_bdry)
+    ### Make boundaries defining the domain
+    Domain = DRLPDE_functions.DefineDomain.Domain(is_unsteady, boundingbox, 
+                                                  list_of_dirichlet_boundaries,
+                                                  list_of_periodic_boundaries)
     
+    ### Initialize the Model
     if pde_type == 'NavierStokes' or 'StokesFlow':
         MyNeuralNetwork = DRLPDE_nn.IncompressibleNN
     else:
         MyNeuralNetwork = DRLPDE_nn.FeedForwardNN
-
-    # Initialize Model
 
     if DRLPDE_param.loadmodel:
         model = torch.load("savedmodels/" + DRLPDE_param.loadmodel + ".pt")
@@ -143,22 +141,20 @@ def maintraining(param='DRLPDE_param_problem',
                            betas=DRLPDE_param_solver.adam_beta, 
                            weight_decay=DRLPDE_param_solver.weight_decay)
 
-    # Create Walkers and Boundary points 
-
-    RWalkers = DRLPDE_functions.Walker_Data(num_walkers, boundingbox, boundaries)
+    ### Create Walkers and Boundary points and Organize into DataLoader
+    RWalkers = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
     RWalkers_batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
 
     if update_walkers == 'move':
         move_RWalkers = torch.zeros_like(RWalkers.location)
 
-    BPoints = DRLPDE_functions.Boundary_Data(num_bdry, boundingbox, boundaries, is_unsteady)
+    BPoints = DRLPDE_functions.DefineDomain.Boundary_Data(num_bdry, boundingbox, Domain.boundaries, is_unsteady)
     BPoints_batch = torch.utils.data.DataLoader(BPoints, batch_size=num_batch_bdry, shuffle=True)
 
     if is_unsteady:
-        InitPoints = DRLPDE_functions.Initial_Data(num_init, boundingbox, boundaries, init_con)
+        InitPoints = DRLPDE_functions.DefineDomain.Initial_Data(num_init, boundingbox, Domain.boundaries, init_con)
         InitPoints_batch = torch.utils.data.DataLoader(InitPoints, batch_size=num_batch_init, shuffle=True)
 
-        
     ################ Training the model #################
     
     print("Training has begun")
@@ -173,8 +169,8 @@ def maintraining(param='DRLPDE_param_problem',
             # Send to GPU and set requires grad flag
             Xold = Xold.to(dev).requires_grad_(True)
 
-            # Move walkers
-            Xnew, Uold, outside = move_Walkers(Xold, model, boundaries, **move_walkers_param)
+            # Evaluate at old location and Move walkers
+            Xnew, Uold, outside = move_Walkers(Xold, model, Domain, **move_walkers_param)
 
             # Evaluate at new location and average
             Unew = evaluate_model(Xold, Xnew, model, **eval_model_param).reshape(num_ghost, 
@@ -185,24 +181,24 @@ def maintraining(param='DRLPDE_param_problem',
             loss = lambda_bell*mseloss(Uold, Unew.detach())
             loss.backward()
 
-            # If moving walkers
+            # If moving walkers save the first ghost walker
             if update_walkers == 'move':
                 if any(outside):
-                    Xnew[:num_batch,:][outside,:] = DRLPDE_functions.generate_interior_points(torch.sum(outside), 
+                    Xnew[:num_batch,:][outside,:] = DRLPDE_functions.DefineDomain.generate_interior_points(torch.sum(outside), 
                                                                                               boundingbox,
-                                                                                              boundaries).to(dev)
+                                                                                              Domain.boundaries).to(dev)
                 move_RWalkers[index,:] = Xnew[:num_batch].detach().cpu()
 
 
-        # Boundary Points - Do in batches
+        # Boundary Points - do in batches
         for Xbdry, Ubtrue in BPoints_batch:
             Xbdry = Xbdry.to(dev).requires_grad_(True)
-            Ubtrue = Ubtrue.to(dev)
+            Ubtrue = Ubtrue.to(dev).detach()
             Ubdry = model(Xbdry)
-            loss = lambda_bdry*mseloss(Ubdry, Ubtrue.detach())
+            loss = lambda_bdry*mseloss(Ubdry, Ubtrue)
             loss.backward()
 
-        # Initial Points - Do in batches
+        # Initial Points - do in batches
         if is_unsteady:
             for Xinit, Uinit_true in InitPoints_batch:
                 Xinit = Xinit.to(dev).requires_grad_(True)
@@ -222,7 +218,7 @@ def maintraining(param='DRLPDE_param_problem',
                 RWalkers.location = move_RWalkers
                 RWalkers_Batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
             elif update_walkers == 'remake':
-                RWalkers = DRLPDE_functions.Walker_Data(num_walkers, boundingbox, boundaries)
+                RWalkers = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
                 RWalkers_Batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
 
         # Print statements

@@ -18,7 +18,6 @@ x_dim = 2
 output_dim = 2
 
 # Steady   or Unsteady
-# Elliptic or Parabolic
 is_unsteady = False
 input_dim = x_dim + is_unsteady
 
@@ -47,38 +46,20 @@ def forcing(X):
 
 ################# Boundary and Initial Conditions ###########
 # Use pytorch expressions to make boundary and initial conditions 
-#
-# To make different boundary conditions for each boundary
-#     ensure the correct bdry_con is called when defining the boundaries
 
 def bdry_con(X):
     u = torch.stack( ( -X[:,1], X[:,0] ), dim=1)
     return u
 
 #################  Make the domain  #######################
-#     First define a bounding box containing your domain
-#         Syntax: [ x interval, y interval, z interval ]
-#         Points will be sampled through rejection sampling
-#
-#     Define each boundary
-#         lines: [ 'line', point, normal, endpoints, bdry_condition ]
-#         disk:  [ 'disk', centre, radius, endpoints, bdry_condition]
-#         
-#     Intersections of boundaries must be input manually
-#         These should be ordered as points will be sampled from first to second
-#         only 2 intersection points allowed
-#         
-#     Boundary condition is given by a function using pytorch expressions
-
 
 boundingbox = [ [-1,1], [-1,1] ]
 
-centre1 = [0,0]
-radius1 = 1.0
-endpoints1 = []
+ring1 = {   'type':'ring',
+            'centre': [0,0],
+            'radius': 1.0,
+            'endpoints': [],
+            'boundary_condition':bdry_con }
 
-bdry1 = [ 'ring', centre1, radius1, endpoints1, bdry_con ]
-
-my_bdry = [ bdry1 ]
-
-is_periodic = False
+list_of_dirichlet_boundaries = [ring1]
+list_of_periodic_boundaries =[]

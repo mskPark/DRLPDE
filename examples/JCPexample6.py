@@ -85,18 +85,29 @@ def inlet_con(X):
 
 boundingbox = [ [0, 5*L_height], [-L_height,L_height] ]
 
-centre1 = [L_height,0]
-radius1 = L_height/3
+bdry1 = {   'type':'disk',
+            'centre': [L_height,0],
+            'radius': L_height/3,
+            'endpoints': [],
+            'boundary_condition':bdry_con }
 
-disk1 = [ 'disk', centre1, radius1, bdry_con ]
+wall_left = {'type':'line',
+             'point': [0, -L_height],
+             'normal': [1,0],
+             'endpoints': [ [0, -L_height], [0, L_height] ],
+             'boundary_condition': inlet_con }
 
-inlet_left =   [ 'line', [0, -L_height], [1,0], [ [0, -L_height], [0, L_height] ], inlet_con]
-wall_top =     [ 'line', [0, L_height], [0,-1], [ [0, L_height], [5*L_height, L_height] ], bdry_con]
-wall_bot =     [ 'line', [0,-L_height], [0, 1], [ [0, -L_height], [5*L_height, -L_height] ], bdry_con]
-outlet_right = [ 'line', [5*L_height, -L_height], [-1,0], [ [5*L_height, -L_height], [5*L_height, L_height] ], None ]
+wall_top = { 'type':'line',
+             'point': [0, L_height],
+             'normal':  [0,-1],
+             'endpoints': [ [0, L_height], [5*L_height, L_height] ],
+             'boundary_condition': bdry_con }
 
+wall_bot = {'type':'line',
+             'point': [0,-L_height],
+             'normal': [0, 1],
+             'endpoints': [ [0, -L_height], [5*L_height, -L_height] ],
+             'boundary_condition': bdry_con }
 
-
-my_bdry = [ disk1, inlet_left, wall_top, wall_bot, outlet_right ]
-
-is_periodic = False
+list_of_dirichlet_boundaries = [bdry1, bdry2, wall_left, wall_top, wall_right, wall_bot ]
+list_of_periodic_boundaries =[]
