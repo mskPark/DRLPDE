@@ -86,3 +86,4 @@ wall_bot    = [ 'line', [-1, -1], [0,1], [ [-1,-1], [1,-1]  ], bdry_con_wall ]
 
 my_bdry = [wall_left, lid_top, wall_right, wall_bot ]
 
+is_periodic = False

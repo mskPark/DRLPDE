@@ -80,3 +80,4 @@ bdry1 = [ 'ball3D', centre1, radius1, bdry_con ]
 
 my_bdry = [ bdry1 ]
 
+is_periodic = False

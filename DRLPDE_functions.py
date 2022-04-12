@@ -2,6 +2,83 @@ import torch
 import math
 import numpy as np
 
+################################
+##############################
+###########################
+
+### Class structures for problem parameters
+
+### Domain parameters
+class Domain:
+
+    def __init__(self, is_unsteady, boundingbox, list_of_bdry, any_periodic, periodic_bdry):
+        
+        self.boundingbox = boundingbox
+        self.is_unsteady = is_unsteady
+
+        self.num_of_boundaries = len(list_of_bdry)
+        
+        # Unpack boundaries descriptions
+        self.boundaries = []
+        for specs in list_of_bdry:
+            ### 2D boundaries
+            if specs['type'] == 'line':
+                self.boundaries.append( bdry_line( point = specs['point'], 
+                                                   normal = specs['normal'],
+                                                   endpoints = specs['endpoints'],
+                                                   boundary_condition = specs['boundary_condition'] ))
+            
+            if specs['type'] == 'disk':
+                self.boundaries.append( bdry_disk( centre = specs['centre'],
+                                                   radius = specs['radius'], 
+                                                   boundary_condition = specs['boundary_condition'] ))
+            
+            if specs['type'] == 'ring':
+                self.boundaries.append( bdry_ring( centre = specs['centre'],
+                                                   radius = specs['radius'], 
+                                                   boundar_condition = specs['boundary_condition'] ))
+
+            if specs['type'] == 'ball':
+                self.boundaries.append( bdry_ball( centre = specs['centre'],
+                                                   radius = specs['radius'], 
+                                                   boundary_condition = specs['boundary_condition'] ))
+            
+            ### 3D boundaries - Note: 2D and 3D boundaries not compatible with each other
+            if specs['type'] == 'sphere':
+                self.boundaries.append( bdry_sphere( centre = specs['centre'], 
+                                                     radius = specs['radius'], 
+                                                     boundary_condition = specs['boundary_condition']))
+
+            if specs['type'] == 'cylinder':
+                self.boundaries.append( bdry_cylinder( centre = specs['centre'],
+                                                       radius = specs['radius'],
+                                                       ### TODO axis of rotation
+                                                       boundary_condition = specs['boundary_condition'] ))
+            if specs['type'] == 'plane':
+                self.boundaries.append( )
+
+            if specs[0] == 'line':
+                self.boundaries.append( bdry_line( specs[1], specs[2], specs[3], specs[4] ) )
+            elif specs[0] == 'disk':
+                self.boundaries.append( bdry_disk( specs[1], specs[2], specs[3], specs[4] ) )
+            elif specs[0] == 'ring':
+                self.boundaries.append( bdry_ring( specs[1], specs[2], specs[3], specs[4] ) )
+            elif specs[0] == 'ball':
+                self.boundaries.append( bdry_ball( specs[1], specs[2], specs[3] ) )
+            elif specs[0] == 'sphere':
+                self.boundaries.append( bdry_sphere( specs[1], specs[2], specs[3] ) )
+            elif specs[0] == 'cylinder': ### Add axis to cylinder
+                self.boundaries.append( bdry_cylinder( specs[1], specs[2], specs[3] ) )
+            elif specs[0] == 'plane':
+                self.boundaries.append( bdry_plane( specs[1], specs[2], specs[3], specs[4] ) )
+        
+        # Unpack any periodic boundaries
+        self.any_periodic=any_periodic
+        if any_periodic:
+            self.periodic_index = periodic_bdry[0]
+            self.periodic_base = periodic_bdry[1]
+            self.periodic_top = periodic_bdry[2]
+
 #######################
 ####################### Functions
 #######################
@@ -9,40 +86,17 @@ import numpy as np
 ######
 ###### Universal Functions
 ######
-
-def make_boundaries(my_bdry):
-    ### Unpack the list of boundary descriptions and make a new list with the boundary classes
-    
-    boundaries = []
-    
-    for specs in my_bdry:
-        if specs[0] == 'line':
-            boundaries.append( bdry_line( specs[1], specs[2], specs[3], specs[4] ) )
-        elif specs[0] == 'disk':
-            boundaries.append( bdry_disk( specs[1], specs[2], specs[3], specs[4] ) )
-        elif specs[0] == 'ring':
-            boundaries.append( bdry_ring( specs[1], specs[2], specs[3], specs[4] ) )
-        elif specs[0] == 'ball':
-            boundaries.append( bdry_ball( specs[1], specs[2], specs[3] ) )
-        elif specs[0] == 'sphere':
-            boundaries.append( bdry_sphere( specs[1], specs[2], specs[3] ) )
-        elif specs[0] == 'cylinder': ### Add axis to cylinder
-            boundaries.append( bdry_cylinder( specs[1], specs[2], specs[3] ) )
-        elif specs[0] == 'plane':
-            boundaries.append( bdry_plane( specs[1], specs[2], specs[3], specs[4] ) )
-    
-    return boundaries
                               
-def generate_interior_points(num_walkers, boundingbox, boundaries):
+def generate_interior_points(num_walkers, Domain):
     ### Generate points inside the domain
     
-    X = torch.empty( (num_walkers, len(boundingbox)) )
+    X = torch.empty( (num_walkers, len(Domain.boundingbox)) )
     
     for ii in range(len(boundingbox)):
         X[:,ii] = (boundingbox[ii][1] - boundingbox[ii][0])*torch.rand( (num_walkers) ) + boundingbox[ii][0]
         
     outside = torch.zeros( X.size(0), dtype=torch.bool)
-    for bdry in boundaries:
+    for bdry in boundaries.list_bdry:
         outside += bdry.dist_to_bdry(X) > 0
     
     if any(outside):
@@ -50,14 +104,14 @@ def generate_interior_points(num_walkers, boundingbox, boundaries):
         
     return X
 
-def generate_boundary_points(num_bdry, boundingbox, boundaries, is_unsteady):
+def generate_boundary_points(num_bdry, Domain):
     ### Generate points along the boundary
     
     points_per_bdry = []
     utrue_per_bdry = []
     
     # Generate num_bdry points for each boundary
-    for bdry in boundaries:
+    for bdry in boundaries.list_bdry:
         X_in_bdry, U_in_bdry =  bdry.generate_boundary(num_bdry, boundingbox, is_unsteady)
         points_per_bdry.append( X_in_bdry )
         utrue_per_bdry.append( U_in_bdry )
@@ -66,7 +120,7 @@ def generate_boundary_points(num_bdry, boundingbox, boundaries, is_unsteady):
     Ubdry_true = torch.cat( utrue_per_bdry, dim=0)
     
     # Sample from above boundary points
-    indices = torch.multinomial( torch.linspace( 0, len(boundaries)*num_bdry - 1, len(boundaries)*num_bdry ), num_bdry)
+    indices = torch.multinomial( torch.linspace( 0, boundaries.how_many*num_bdry - 1, boundaries.how_many*num_bdry ), num_bdry)
     
     Xbdry = Xbdry[indices,:]
     Ubdry_true = Ubdry_true[indices,:]
@@ -79,7 +133,7 @@ def generate_boundary_points(num_bdry, boundingbox, boundaries, is_unsteady):
 
 
 ### Move Walkers
-def move_Walkers_NS_steady(X, model, boundaries, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
+def move_Walkers_NS_steady(X, model, Domain, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
     ### Move walkers
     
     Uold = model(X)
@@ -92,7 +146,7 @@ def move_Walkers_NS_steady(X, model, boundaries, x_dim, mu, dt, num_batch, num_g
     
     return Xnew, Uold, outside[:num_batch]
 
-def move_Walkers_NS_unsteady(X, model, boundaries, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
+def move_Walkers_NS_unsteady(X, model, Domain, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
     ### Move walkers
     
     Uold = model(X)
@@ -106,7 +160,7 @@ def move_Walkers_NS_unsteady(X, model, boundaries, x_dim, mu, dt, num_batch, num
     
     return Xnew, Uold, outside[:num_batch]
 
-def move_Walkers_Stokes_steady(X, model, boundaries, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
+def move_Walkers_Stokes_steady(X, model, Domain, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
     ### Move walkers
     
     Uold = model(X)
@@ -119,7 +173,7 @@ def move_Walkers_Stokes_steady(X, model, boundaries, x_dim, mu, dt, num_batch, n
     
     return Xnew, Uold, outside[:num_batch]
 
-def move_Walkers_Stokes_unsteady(X, model, boundaries, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
+def move_Walkers_Stokes_unsteady(X, model, Domain, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
     ### Move walkers
     
     Uold = model(X)
@@ -133,7 +187,7 @@ def move_Walkers_Stokes_unsteady(X, model, boundaries, x_dim, mu, dt, num_batch,
     
     return Xnew, Uold, outside[:num_batch]
 
-def move_Walkers_Elliptic(X, model, boundaries, x_dim, mu, dt, num_batch, num_ghost, tol, drift, **move_walkers_param):
+def move_Walkers_Elliptic(X, model, Domain, x_dim, mu, dt, num_batch, num_ghost, tol, drift, **move_walkers_param):
     ### Move walkers
     
     Uold = model(X)
@@ -146,7 +200,7 @@ def move_Walkers_Elliptic(X, model, boundaries, x_dim, mu, dt, num_batch, num_gh
     
     return Xnew, Uold, outside[:num_batch]
 
-def move_Walkers_Parabolic(X, model, boundaries, x_dim, mu, dt, num_batch, num_ghost, tol, drift, **move_walkers_param):
+def move_Walkers_Parabolic(X, model, Domain, x_dim, mu, dt, num_batch, num_ghost, tol, drift, **move_walkers_param):
     ### Move walkers
     
     Uold = model(X)

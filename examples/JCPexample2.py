@@ -105,3 +105,4 @@ bdry1 = [ 'ring', centre1, radius1, endpoints1, bdry_con ]
 
 my_bdry = [ bdry1 ]
 
+is_periodic = False

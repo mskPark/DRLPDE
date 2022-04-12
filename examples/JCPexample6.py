@@ -99,3 +99,4 @@ outlet_right = [ 'line', [5*L_height, -L_height], [-1,0], [ [5*L_height, -L_heig
 
 my_bdry = [ disk1, inlet_left, wall_top, wall_bot, outlet_right ]
 
+is_periodic = False

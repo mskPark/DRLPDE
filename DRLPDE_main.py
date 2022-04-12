@@ -39,6 +39,10 @@ def maintraining(param='DRLPDE_param_problem',
     pde_type = DRLPDE_param.pde_type
     is_unsteady = DRLPDE_param.is_unsteady
     output_dim = DRLPDE_param.output_dim
+
+    is_periodic = DRLPDE_param.is_periodic
+    if is_periodic:
+        my_periodic_bdry = DRLPDE_param.my_periodic_bdry
     
     ### TODO: Safeguard is_unsteady and pde_type
     ### 
@@ -118,7 +122,7 @@ def maintraining(param='DRLPDE_param_problem',
     print("Initializing the model")
     
     # Make boundaries defining the domain
-    boundaries = DRLPDE_functions.make_boundaries(my_bdry)
+    boundaries = DRLPDE_functions.boundaries(list_of_bdry, is_periodic, periodic_bdry)
     
     if pde_type == 'NavierStokes' or 'StokesFlow':
         MyNeuralNetwork = DRLPDE_nn.IncompressibleNN

@@ -22,5 +22,6 @@
 
 ## Making the Domain
 
+Boundary types:
 
 
