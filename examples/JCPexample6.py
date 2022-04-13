@@ -109,5 +109,5 @@ wall_bot = {'type':'line',
              'endpoints': [ [0, -L_height], [5*L_height, -L_height] ],
              'boundary_condition': bdry_con }
 
-list_of_dirichlet_boundaries = [bdry1, bdry2, wall_left, wall_top, wall_right, wall_bot ]
+list_of_dirichlet_boundaries = [bdry1, wall_left, wall_top, wall_bot ]
 list_of_periodic_boundaries =[]

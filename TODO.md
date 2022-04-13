@@ -1,13 +1,3 @@
-- Domain class
-    + boundary descriptions should be a dictionary
-    + list_of_bdry is a list of the boundary descriptions
-    + fix all the functions that depend on boundary
-    + cylinder axis
-
-When generating boundaries, check points are outside the other domains
-
-Make DRLPDE_functions into a package
-
 - Split domain into 
   + For N boundaries, N+1 regions (close to i-th boundary)
   + Quick method of checking if walker is in which boundary

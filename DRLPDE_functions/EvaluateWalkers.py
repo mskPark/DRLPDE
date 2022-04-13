@@ -2,6 +2,10 @@
 ### This module contains the functions moving and evaluating the walkers
 ###
 
+import torch
+import math
+import numpy as np
+
 ### Move Walkers
 def move_Walkers_NS_steady(X, model, Domain, x_dim, mu, dt, num_batch, num_ghost, tol, **move_walkers_param):
     
@@ -120,7 +124,7 @@ def exit_condition_steady(Xold, Xnew, boundaries, tol):
     outside = torch.zeros( Xnew.size(0), dtype=torch.bool, device=Xnew.device)
     
     for bdry in boundaries:
-        outside_bdry = bdry.dist_to_bdry(Xnew) > 0
+        outside_bdry = bdry.dist_to_bdry(Xnew) < 0
         if torch.any(outside_bdry) > 0:
             ### Bisection to get close to exit location
             ### TODO: should we take a point on the boundary (by projecting or something)
@@ -136,7 +140,7 @@ def exit_condition_unsteady(Xold, Xnew, boundaries, tol):
     outside = torch.zeros( Xnew.size(0), dtype=torch.bool, device=Xnew.device)
     
     for bdry in boundaries:
-        outside_bdry = bdry.dist_to_bdry(Xnew) > 0
+        outside_bdry = bdry.dist_to_bdry(Xnew) < 0
         if torch.any(outside_bdry) > 0:
             ### Bisection to get close to exit location
             ### Question: 
@@ -165,12 +169,14 @@ def find_bdry_exit(Xold, Xnew, bdry, tol):
     
     dist = bdry.dist_to_bdry(Xmid)
     
+    # above tolerance = inside
+    # below tolerance = outside
     above_tol = dist > tol
     below_tol = dist < -tol
     
     if torch.sum(above_tol + below_tol) > 0:
-        Xnew[above_tol,:] = Xmid[above_tol,:]
-        Xold[below_tol,:] = Xmid[below_tol,:]
+        Xnew[below_tol,:] = Xmid[below_tol,:]
+        Xold[above_tol,:] = Xmid[above_tol,:]
         
         Xmid[above_tol + below_tol,:] = find_bdry_exit(Xold[above_tol + below_tol,:], Xnew[above_tol + below_tol,:], bdry, tol)
 
@@ -181,6 +187,8 @@ def find_time_exit(Xold, Xnew, tol):
     
     Xmid = (Xnew + Xold)/2
 
+    # above tolerance = inside
+    # below tolerance = outside
     above_tol = Xmid[:,-1] > tol
     below_tol = Xmid[:,-1] < -tol
 

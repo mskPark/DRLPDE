@@ -7,9 +7,9 @@ dt = 1e-4
 tol = 1e-6
 
 # Number of walkers
-num_walkers = 2**10
+num_walkers = 2**12
 num_ghost = 256
-num_batch = 2**18
+num_batch = 2**10
 
 # Update walkers
 # Options: 

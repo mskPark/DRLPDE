@@ -81,7 +81,6 @@ periodic1 = { 'variable':'z',
 cylinder1 = {'type':'cylinder',
             'centre': [0,0,0],
             'radius': 1.0,
-            'length': 1.0,
             'boundary_condition':bdry_con }
             
 list_of_dirichlet_boundaries = [cylinder1]
