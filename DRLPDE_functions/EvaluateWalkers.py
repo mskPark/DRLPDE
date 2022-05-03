@@ -125,7 +125,7 @@ def exit_condition_steady(Xold, Xnew, boundaries, tol):
     
     for bdry in boundaries:
         outside_bdry = bdry.dist_to_bdry(Xnew) < 0
-        if torch.any(outside_bdry) > 0:
+        if torch.sum(outside_bdry) > 0:
             ### Bisection to get close to exit location
             ### TODO: should we take a point on the boundary (by projecting or something)
             
@@ -141,7 +141,7 @@ def exit_condition_unsteady(Xold, Xnew, boundaries, tol):
     
     for bdry in boundaries:
         outside_bdry = bdry.dist_to_bdry(Xnew) < 0
-        if torch.any(outside_bdry) > 0:
+        if torch.sum(outside_bdry) > 0:
             ### Bisection to get close to exit location
             ### Question: 
             ###     Should we take a point on the boundary (by projecting or something)
@@ -206,19 +206,19 @@ def periodic_condition(Xnew, periodic_boundaries):
         below_base = Xnew[:,bdry.index] < bdry.base
         above_top = Xnew[:,bdry.index] > bdry.top
 
-        if any(below_base):
+        if torch.sum(below_base) > 0:
             Xnew[below_base, bdry.index] = Xnew[below_base, bdry.index] + (bdry.top - bdry.base)
-        if any(above_top):
+        if torch.sum(above_top) > 0:
             Xnew[above_top,bdry.index] = Xnew[above_top, bdry.index] - (bdry.top - bdry.base)
     return Xnew
 
 ### Evaluate Model at new location
 def evaluate_model_NS(Xold, Xnew, model, dt, forcing, **eval_model_param):
-    Unew = model(Xnew) + forcing(Xnew)*dt
+    Unew = model(Xnew) + (forcing(Xold) + forcing(Xnew))*dt/2
 
     return Unew
     
 def evaluate_model_PDE(Xold, Xnew, model, dt, forcing, reaction, **eval_model_param):
-    Unew = model(Xnew)*torch.exp( reaction(Xnew)*dt) + forcing(Xnew)*dt
+    Unew = model(Xnew)*torch.exp( reaction(Xnew)*dt) + (forcing(Xold) + forcing(Xnew))*dt/2
     
     return Unew

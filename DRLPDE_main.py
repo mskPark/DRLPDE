@@ -13,12 +13,12 @@ import torch.optim as optim
 ##########   Main execution
 
 def maintraining(param='DRLPDE_param_problem',
-                  use_cuda='torch.cuda.is_available()'):
+                 param_solver = 'DRLPDE_param_solver',
+                 use_cuda='torch.cuda.is_available()'):
     
     ################# Pre-processing ##################
     
     import DRLPDE_nn
-    import DRLPDE_param_solver
     import DRLPDE_functions.DefineDomain
     import DRLPDE_functions.EvaluateWalkers
     
@@ -26,10 +26,12 @@ def maintraining(param='DRLPDE_param_problem',
     
     if param=='DRLPDE_param_problem':
         DRLPDE_param = importlib.import_module("DRLPDE_param_problem")
-        print("Pre-processing: Loading parameters from default location: DRLPDE_param_problem.py")
+        #print("Pre-processing: Loading parameters from default location: DRLPDE_param_problem.py")
     else:
         DRLPDE_param = importlib.import_module("." + param, package='examples')
-        print("Pre-processing: Loading parameters from " + param + '.py')
+        #print("Pre-processing: Loading parameters from " + param + '.py')
+
+    DRLPDE_param_solver = importlib.import_module(param_solver)
         
     ### Use cuda
     dev = torch.device("cuda:0" if use_cuda else "cpu")
@@ -116,7 +118,7 @@ def maintraining(param='DRLPDE_param_problem',
 
     ################ Preparing the model #################
     
-    print("Initializing the model")
+    #print("Initializing the model")
     
     ### Make boundaries defining the domain
     Domain = DRLPDE_functions.DefineDomain.Domain(is_unsteady, boundingbox, 
@@ -157,7 +159,7 @@ def maintraining(param='DRLPDE_param_problem',
 
     ################ Training the model #################
     
-    print("Training has begun")
+    #print("Training has begun")
     
     start_time = time.time()
 
@@ -173,7 +175,7 @@ def maintraining(param='DRLPDE_param_problem',
             Xnew, Uold, outside = move_Walkers(Xold, model, Domain, **move_walkers_param)
 
             # Evaluate at new location and average
-            Unew = evaluate_model(Xold, Xnew, model, **eval_model_param).reshape(num_ghost, 
+            Unew = evaluate_model(Xold.repeat(num_ghost,1), Xnew, model, **eval_model_param).reshape(num_ghost, 
                                                                                  num_batch,
                                                                                  output_dim).mean(0)
             
@@ -234,10 +236,10 @@ def maintraining(param='DRLPDE_param_problem',
     # Save model as pickle file
     if DRLPDE_param.savemodel:
         torch.save(model, "savedmodels/" + DRLPDE_param.savemodel + ".pt")
-        print("model saved as savedmodels/" + DRLPDE_param.savemodel + ".pt")
+        #print("model saved as savedmodels/" + DRLPDE_param.savemodel + ".pt")
 
     # Return the model for plotting
-    return DRLPDE_param.savemodel
+    return model
    
           
 if __name__ == "__main__":
@@ -260,12 +262,12 @@ if __name__ == "__main__":
     else:
         use_cuda = torch.cuda.is_available()
         
-    use_model = maintraining(param, use_cuda)
+    #use_model = maintraining(param, use_cuda)
           
     ### Plot stuff ###
-    import DRLPDE_postprocessing
+    #import DRLPDE_postprocessing
     
-    DRLPDE_postprocessing.postprocessing(param, use_model)
+    #DRLPDE_postprocessing.postprocessing(param, use_model)
     
     
     

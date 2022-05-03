@@ -30,20 +30,25 @@ num_batch_init = 2**8
 ############## Training Parameters #######################
 
 # Training epochs
-num_epoch = 1000
+num_epoch =  10000
 update_print_every = 1000
 
 # Neural Network Architecture
-nn_depth = 20
+nn_depth = 60
 nn_width = 4
 
 # Weighting of losses
 lambda_bell = 1e-2/dt
-lambda_bdry = 1
+lambda_bdry = 1e-1
 lambda_init = 0
 
 # Learning rate
-learning_rate = 1e-2
+learning_rate = 1e-3
 adam_beta = (0.9,0.999)
 weight_decay = 0
 
+############## Results ###############################
+
+Time to train: 4613.7 seconds
+L2 Error = 0.0561
+Linf Error = 0.0732
