@@ -25,7 +25,7 @@ is_unsteady = False
 input_dim = x_dim + is_unsteady
 
 L_height = 0.5
-v0 = 5.0
+v0 = 1.765
 
 # Is there a true solution
 exists_analytic_sol = False
@@ -63,7 +63,7 @@ def bdry_con(X):
 def inlet_con(X):
     u = torch.zeros_like(X, device=X.device)
     
-    u[:,0] = v0*torch.mul((L_height - X[:,1]),(L_height + X[:,1]))
+    u[:,0] = v0*torch.mul((L_height - X[:,1]),(L_height + X[:,1]))/(L_height**2)
 
     return u
 

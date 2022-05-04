@@ -70,25 +70,25 @@ def bdry_con_lid(X):
 boundingbox = [ [-1,1], [-1,1] ]
 
 wall_left = {'type':'line',
-             'point': [-1,-1],
+             'point': [-1,0],
              'normal': [1,0],
              'endpoints': [ [-1,-1], [-1,1] ],
              'boundary_condition': bdry_con_wall }
 
 lid_top = { 'type':'line',
-             'point': [-1,1],
+             'point': [0,1],
              'normal': [0,-1],
              'endpoints': [ [-1,1],   [1,1]  ],
              'boundary_condition': bdry_con_lid }
 
 wall_right= {'type':'line',
-             'point': [1, -1],
+             'point': [1, 0],
              'normal':  [-1,0],
              'endpoints':  [ [1,-1],   [1,1]  ],
              'boundary_condition': bdry_con_wall }
 
 wall_bot = {'type':'line',
-             'point': [-1,-1],
+             'point': [0,-1],
              'normal': [0,1],
              'endpoints': [ [-1,-1], [1,-1] ],
              'boundary_condition': bdry_con_wall }
