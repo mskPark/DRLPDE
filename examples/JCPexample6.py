@@ -25,7 +25,7 @@ is_unsteady = False
 input_dim = x_dim + is_unsteady
 
 L_height = 0.5
-v0 = 1.765
+v0 = 1.513787
 
 # Is there a true solution
 exists_analytic_sol = False

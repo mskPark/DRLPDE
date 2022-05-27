@@ -46,6 +46,8 @@ def maintraining(param='DRLPDE_param_problem',
     pde_type = DRLPDE_param.pde_type
     is_unsteady = DRLPDE_param.is_unsteady
     output_dim = DRLPDE_param.output_dim
+
+    there_are_boundaries = bool(list_of_dirichlet_boundaries)
     
     nn_param = {'depth': DRLPDE_param_solver.nn_depth,
                 'width': DRLPDE_param_solver.nn_width,
@@ -132,7 +134,8 @@ def maintraining(param='DRLPDE_param_problem',
         MyNeuralNetwork = DRLPDE_nn.FeedForwardNN
 
     if DRLPDE_param.loadmodel:
-        model = torch.load("savedmodels/" + DRLPDE_param.loadmodel + ".pt")
+        model = MyNeuralNetwork(**nn_param).to(dev)
+        model.load_state_dict(torch.load("savedmodels/" + DRLPDE_param.loadmodel + ".pt"))
         print("Using model from savedmodels/" + DRLPDE_param.loadmodel + ".pt")
     else:
         model = MyNeuralNetwork(**nn_param).to(dev)
@@ -150,8 +153,9 @@ def maintraining(param='DRLPDE_param_problem',
     if update_walkers == 'move':
         move_RWalkers = torch.zeros_like(RWalkers.location)
 
-    BPoints = DRLPDE_functions.DefineDomain.Boundary_Data(num_bdry, boundingbox, Domain.boundaries, is_unsteady)
-    BPoints_batch = torch.utils.data.DataLoader(BPoints, batch_size=num_batch_bdry, shuffle=True)
+    if there_are_boundaries:
+        BPoints = DRLPDE_functions.DefineDomain.Boundary_Data(num_bdry, boundingbox, Domain.boundaries, is_unsteady)
+        BPoints_batch = torch.utils.data.DataLoader(BPoints, batch_size=num_batch_bdry, shuffle=True)
 
     if is_unsteady:
         InitPoints = DRLPDE_functions.DefineDomain.Initial_Data(num_init, boundingbox, Domain.boundaries, init_con)
@@ -175,12 +179,12 @@ def maintraining(param='DRLPDE_param_problem',
             Xnew, Uold, outside = move_Walkers(Xold, model, Domain, **move_walkers_param)
 
             # Evaluate at new location and average
-            Unew = evaluate_model(Xold.repeat(num_ghost,1), Xnew, model, **eval_model_param).reshape(num_ghost, 
+            Target = evaluate_model(Xold.repeat(num_ghost,1), Xnew, model, **eval_model_param).reshape(num_ghost, 
                                                                                  num_batch,
                                                                                  output_dim).mean(0)
             
             # Calculate loss
-            loss = lambda_bell*mseloss(Uold, Unew.detach())
+            loss = lambda_bell*mseloss(Uold, Target.detach())
             loss.backward()
 
             # If moving walkers save the first ghost walker
@@ -193,12 +197,13 @@ def maintraining(param='DRLPDE_param_problem',
 
 
         # Boundary Points - do in batches
-        for Xbdry, Ubtrue in BPoints_batch:
-            Xbdry = Xbdry.to(dev).requires_grad_(True)
-            Ubtrue = Ubtrue.to(dev).detach()
-            Ubdry = model(Xbdry)
-            loss = lambda_bdry*mseloss(Ubdry, Ubtrue)
-            loss.backward()
+        if there_are_boundaries:
+            for Xbdry, Ubtrue in BPoints_batch:
+                Xbdry = Xbdry.to(dev).requires_grad_(True)
+                Ubtrue = Ubtrue.to(dev).detach()
+                Ubdry = model(Xbdry)
+                loss = lambda_bdry*mseloss(Ubdry, Ubtrue)
+                loss.backward()
 
         # Initial Points - do in batches
         if is_unsteady:
@@ -206,7 +211,7 @@ def maintraining(param='DRLPDE_param_problem',
                 Xinit = Xinit.to(dev).requires_grad_(True)
                 Uinit_true = Uinit_true.to(dev).detach()
                 Uinit = model(Xinit)
-                loss = lambda_bdry*mseloss(Uinit, Uinit_true)
+                loss = lambda_init*mseloss(Uinit, Uinit_true)
                 loss.backward()
 
         # Make optimization step
@@ -235,7 +240,7 @@ def maintraining(param='DRLPDE_param_problem',
 
     # Save model as pickle file
     if DRLPDE_param.savemodel:
-        torch.save(model, "savedmodels/" + DRLPDE_param.savemodel + ".pt")
+        torch.save(model.state_dict(), "savedmodels/" + DRLPDE_param.savemodel + ".pt")
         #print("model saved as savedmodels/" + DRLPDE_param.savemodel + ".pt")
 
     # Return the model for plotting

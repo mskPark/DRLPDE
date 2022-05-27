@@ -214,11 +214,11 @@ def periodic_condition(Xnew, periodic_boundaries):
 
 ### Evaluate Model at new location
 def evaluate_model_NS(Xold, Xnew, model, dt, forcing, **eval_model_param):
-    Unew = model(Xnew) + (forcing(Xold) + forcing(Xnew))*dt/2
+    Target = model(Xnew) + (forcing(Xold) + forcing(Xnew))*dt/2
 
-    return Unew
+    return Target
     
 def evaluate_model_PDE(Xold, Xnew, model, dt, forcing, reaction, **eval_model_param):
-    Unew = model(Xnew)*torch.exp( reaction(Xnew)*dt) + (forcing(Xold) + forcing(Xnew))*dt/2
+    Target = model(Xnew)*torch.exp( reaction(Xnew)*dt) + (forcing(Xold) + forcing(Xnew))*dt/2
     
-    return Unew
+    return Target

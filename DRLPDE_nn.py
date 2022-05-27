@@ -3,8 +3,6 @@
 import torch
 import torch.nn as nn
 
-
-
 class IncompressibleNN(nn.Module):
     
     ### Incompressible neural network
@@ -16,32 +14,32 @@ class IncompressibleNN(nn.Module):
         self.x_dim = x_dim
         self.input_dim = self.x_dim + is_unsteady
         
-        dim_out = [1, 3][self.x_dim==3]
+        self.dim_out = [1, 3][self.x_dim==3]
         
         modules = []
         modules.append(nn.Linear(self.input_dim, depth))
         for i in range(width - 1):
             modules.append(nn.Linear(depth, depth))
             modules.append(nn.Tanh())
-        modules.append(nn.Linear(depth, dim_out))
+        modules.append(nn.Linear(depth, self.dim_out))
                        
         self.sequential_model = nn.Sequential(*modules)
     
     def curl(self, a, x):
         if self.x_dim == 2:
-            dadx = torch.autograd.grad(a, x, grad_outputs = torch.ones_like(a), create_graph = True, 
-                                       retain_graph = True, only_inputs = True)[0]
+            dadx = torch.autograd.grad(a, x, grad_outputs = torch.ones_like(a), 
+                                        create_graph = True, retain_graph = True)[0]
             u = torch.stack([dadx[:,1], -dadx[:,0]] , dim=1)
             
         elif self.x_dim == 3:
             e = torch.eye(self.x_dim, device=x.device)
 
             da0dx = torch.autograd.grad(a, x, grad_outputs=e[0,:].repeat(a.size(0), 1), 
-                                        create_graph=True, retain_graph = True, only_inputs = True)[0]
+                                        create_graph=True, retain_graph = True)[0]
             da1dx = torch.autograd.grad(a, x, grad_outputs=e[1,:].repeat(a.size(0), 1),
-                                        create_graph=True, retain_graph = True, only_inputs = True)[0]
+                                        create_graph=True, retain_graph = True)[0]
             da2dx = torch.autograd.grad(a, x, grad_outputs=e[2,:].repeat(a.size(0), 1),
-                                        create_graph=True, retain_graph = True, only_inputs = True)[0]
+                                        create_graph=True, retain_graph = True)[0]
 
             u = torch.stack([da2dx[:,1] - da1dx[:,2], da0dx[:,2] - da2dx[:,0], da1dx[:,0] - da0dx[:,1] ], dim=1)         
         return u
@@ -84,7 +82,7 @@ class ResNetNN(nn.Module):
     ### Non-adaptive layers
     
     def __init__(self, depth, width, x_dim, is_unsteady, output_dim, **nn_param):
-        super(MyResNet, self).__init__()
+        super(ResNetNN, self).__init__()
         
         input_dim = x_dim + is_unsteady
         
@@ -106,4 +104,4 @@ class ResNetNN(nn.Module):
 
         a = self.ff_out(out)
 
-        return u
+        return a

@@ -539,10 +539,10 @@ def generate_interior_points(num_walkers, boundingbox, boundaries):
     ### Generate points inside the domain
 
     X = torch.empty( (num_walkers, len(boundingbox)) )
-    
+
     for ii in range(len(boundingbox)):
         X[:,ii] = (boundingbox[ii][1] - boundingbox[ii][0])*torch.rand( (num_walkers) ) + boundingbox[ii][0]
-        
+
     outside = torch.zeros( X.size(0), dtype=torch.bool)
     for bdry in boundaries:
         outside += bdry.dist_to_bdry(X) < 0
