@@ -21,6 +21,7 @@ def maintraining(param='DRLPDE_param_problem',
     import DRLPDE_nn
     import DRLPDE_functions.DefineDomain
     import DRLPDE_functions.EvaluateWalkers
+    torch.set_default_dtype(torch.float64)
     
     import importlib
     
@@ -230,13 +231,14 @@ def maintraining(param='DRLPDE_param_problem',
 
         # Print statements
         if step == 0:
-            print('No errors in first epoch: Training will continue')
+            print('No errors in first epoch')
+            current_time = time.time()
+            print('Approx time: {:.0f} minutes'.format((current_time - start_time)*num_epoch/60))
         if (step+1) % update_print_every == 0:
             current_time = time.time()
-            np.set_printoptions(precision=2)
-            print('step = {0}/{1}, {2:2.3f} s/step, time-to-go:{3:2.0f}s'.format(
+            print('step = {0}/{1}, {2:2.3f} s/step, time-to-go:{3:2.0f} min'.format(
                     step+1, num_epoch, (current_time - start_time) / (step + 1), 
-                (current_time - start_time) / (step + 1) * (num_epoch - step - 1)))
+                (current_time - start_time) / (step + 1) * (num_epoch - step - 1)/60))
 
     # Save model as pickle file
     if DRLPDE_param.savemodel:

@@ -101,8 +101,11 @@ class bdry_disk:
     def make_bdry_pts(self, num_bdry, boundingbox, is_unsteady, other_bdrys):
         ### Make points along the boundary as well as the interior
         
-        theta = (self.angles[1] - self.angles[0])*torch.rand((2*num_bdry)) + self.angles[0]
-        inside_rad = self.radius*torch.sqrt( torch.rand(num_bdry) )
+        #theta = (self.angles[1] - self.angles[0])*torch.rand((2*num_bdry)) + self.angles[0]
+        #inside_rad = self.radius*torch.sqrt( torch.rand(num_bdry) )
+
+        theta_r = torch.cartesian_prod( torch.linspace(0, 2*math.pi, 2**7), self.radius*torch.sqrt( torch.linspace(0,1,2**4) ))
+        #rad = self.radius*torch.sqrt( torch.linspace(0,1,2**4) )
 
         
         if is_unsteady:
@@ -115,16 +118,19 @@ class bdry_disk:
                                      (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1)
 
         else:
-            Xbdry1 = torch.stack((self.radius*torch.cos(theta[:num_bdry]) + self.centre[0],
-                                 self.radius*torch.sin(theta[:num_bdry]) + self.centre[1]), dim=1 )
+            #Xbdry1 = torch.stack((self.radius*torch.cos(theta[:num_bdry]) + self.centre[0],
+            #                     self.radius*torch.sin(theta[:num_bdry]) + self.centre[1]), dim=1 )
 
-            Xbdry2 = torch.stack( (inside_rad*torch.cos(theta[num_bdry:]) + self.centre[0],
-                                      inside_rad*torch.sin(theta[num_bdry:]) + self.centre[1]), dim=1  )
-        
-        Xbdry = torch.cat( (Xbdry1, Xbdry2), dim=0)
+            #Xbdry2 = torch.stack( (inside_rad*torch.cos(theta[num_bdry:]) + self.centre[0],
+            #                         inside_rad*torch.sin(theta[num_bdry:]) + self.centre[1]), dim=1  )
 
-        indices = torch.multinomial( torch.arange( 2*num_bdry, dtype=torch.float ), num_bdry)
-        Xbdry = Xbdry[indices,:]
+            Xbdry = torch.stack( (theta_r[:,1]*torch.cos(theta_r[:,0]) + self.centre[0],
+                                  theta_r[:,1]*torch.sin(theta_r[:,0]) + self.centre[1]), dim=1)
+
+        #Xbdry = torch.cat( (Xbdry1, Xbdry2), dim=0)
+
+        #indices = torch.multinomial( torch.arange( 2*num_bdry, dtype=torch.float ), num_bdry)
+        #Xbdry = Xbdry[indices,:]
 
 
         ### Check if outside other bdrys
@@ -179,12 +185,20 @@ class bdry_ring:
             
             
     def make_bdry_pts(self, num_bdry, boundingbox, is_unsteady, other_bdrys):
-        theta = (self.angles[1] - self.angles[0])*torch.rand((num_bdry)) + self.angles[0]
-        
+        #theta = (self.angles[1] - self.angles[0])*torch.rand((num_bdry)) + self.angles[0]
+        theta = torch.linspace(0, 2*math.pi, 64)
+
         if is_unsteady:
-            Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
-                                 self.radius*torch.sin(theta) + self.centre[1],
-                                (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )  
+            #Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
+            #                     self.radius*torch.sin(theta) + self.centre[1],
+            #                    (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )
+            time_range = (boundingbox[-1][1] - boundingbox[-1][0])*torch.linspace(0,1,64) + boundingbox[-1][0]
+            dummy = torch.cartesian_prod( theta, time_range )
+
+            Xbdry = torch.stack( (self.radius*torch.cos(dummy[:,0]) + self.centre[0], 
+                                 self.radius*torch.sin(dummy[:,0]) + self.centre[1],
+                                 dummy[:,1]), dim=1 )
+
         else:
             Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                              self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
@@ -236,17 +250,17 @@ class bdry_line:
             Xbdry = torch.cat( ( (self.endpoints[1] - self.endpoints[0] )*torch.rand((num_bdry,1)) + self.endpoints[0],
                                  (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry,1)) + boundingbox[-1][0]), dim=1)
         else:    
-            Xbdry = ( self.endpoints[1] - self.endpoints[0] )*torch.rand((num_bdry,1)) + self.endpoints[0]
- 
+            #Xbdry = ( self.endpoints[1] - self.endpoints[0] )*torch.rand((num_bdry,1)) + self.endpoints[0]
+            Xbdry = ( self.endpoints[1] - self.endpoints[0] )*torch.linspace(0,1, 2**9)[:,None] + self.endpoints[0]
         ### Check if outside other bdrys
         ### and remake bdry points
-        outside = torch.zeros(Xbdry.size(0), dtype=torch.bool)
+        #outside = torch.zeros(Xbdry.size(0), dtype=torch.bool)
 
-        for bdry in other_bdrys:
-            outside += bdry.dist_to_bdry(Xbdry) < 0
+        #for bdry in other_bdrys:
+        #    outside += bdry.dist_to_bdry(Xbdry) < 0
         
-        if any(outside):
-            Xbdry[outside,:] = self.make_bdry_pts(torch.sum(outside), boundingbox, is_unsteady, other_bdrys)
+        #if any(outside):
+        #    Xbdry[outside,:] = self.make_bdry_pts(torch.sum(outside), boundingbox, is_unsteady, other_bdrys)
 
         return Xbdry
     
@@ -574,9 +588,9 @@ def generate_boundary_points(num_bdry, boundingbox, boundaries, is_unsteady):
     Ubdry_true = torch.cat( utrue_per_bdry, dim=0)
 
     # Sample from above boundary points
-    indices = torch.multinomial( torch.arange( len(boundaries)*num_bdry, dtype=torch.float ), num_bdry)
+    #indices = torch.multinomial( torch.arange( len(boundaries)*num_bdry, dtype=torch.float ), num_bdry)
     
-    Xbdry = Xbdry[indices,:]
-    Ubdry_true = Ubdry_true[indices,:]
+    #Xbdry = Xbdry[indices,:]
+    #Ubdry_true = Ubdry_true[indices,:]
     
     return Xbdry, Ubdry_true

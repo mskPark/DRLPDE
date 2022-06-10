@@ -31,7 +31,7 @@ ax[0,0].tick_params(
     labelleft=False
 )
 
-colobar0_param = fig.add_axes(
+colorbar0_param = fig.add_axes(
     [ax[0,0].get_position().x1 + 0.01,
      ax[0,0].get_position().y0,
      0.01,

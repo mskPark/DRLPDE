@@ -13,7 +13,7 @@ global L_height, v0
 ############## Save model and/or Load model ##############
 
 savemodel = 'JCPexample6'
-loadmodel = ''
+loadmodel = 'JCPexample6'
 
 # Physical Dimension
 x_dim = 2
@@ -109,5 +109,11 @@ wall_bot = {'type':'line',
              'endpoints': [ [0, -L_height], [5*L_height, -L_height] ],
              'boundary_condition': bdry_con }
 
-list_of_dirichlet_boundaries = [bdry1, wall_left, wall_top, wall_bot ]
+wall_right = {'type':'line',
+             'point': [5*L_height, -L_height],
+             'normal': [-1,0],
+             'endpoints': [ [5*L_height, -L_height], [5*L_height, L_height] ],
+             'boundary_condition': inlet_con }
+
+list_of_dirichlet_boundaries = [bdry1, wall_left, wall_top, wall_bot, wall_right ]
 list_of_periodic_boundaries =[]

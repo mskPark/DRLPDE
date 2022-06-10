@@ -13,7 +13,7 @@ import scipy.special as bessel
 ############## Save model and/or Load model ##############
 
 savemodel = 'JCPexample2'
-loadmodel = ''
+loadmodel = 'JCPexample2'
 
 # Physical Dimension
 x_dim = 2
