@@ -1,4 +1,4 @@
-#########   Deep Reinforcement Learning of Partial Differential Equations
+#########   Physics-Informed Solver of Partial Differential Equations
 
 #########   Built-in packages
 
@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-##########   Main execution
+##########   Main execution function
 
 def maintraining(param='DRLPDE_param_problem',
                  param_solver = 'DRLPDE_param_solver',
@@ -20,7 +20,8 @@ def maintraining(param='DRLPDE_param_problem',
     
     import DRLPDE_nn
     import DRLPDE_functions.DefineDomain
-    import DRLPDE_functions.EvaluateWalkers
+    import DRLPDE_functions.EvaluateDerivatives
+
     torch.set_default_dtype(torch.float64)
     
     import importlib
@@ -43,7 +44,7 @@ def maintraining(param='DRLPDE_param_problem',
 
     boundingbox = DRLPDE_param.boundingbox
     list_of_dirichlet_boundaries = DRLPDE_param.list_of_dirichlet_boundaries
-    list_of_periodic_boundaries = DRLPDE_param.list_of_periodic_boundaries
+    list_of_periodic_boundaries = []
     pde_type = DRLPDE_param.pde_type
     is_unsteady = DRLPDE_param.is_unsteady
     output_dim = DRLPDE_param.output_dim
@@ -56,54 +57,18 @@ def maintraining(param='DRLPDE_param_problem',
                 'is_unsteady':DRLPDE_param.is_unsteady,
                 'output_dim':DRLPDE_param.output_dim
                 }
-
-    move_walkers_param={'x_dim': DRLPDE_param.x_dim,
-                        'mu': DRLPDE_param.mu,
-                        'dt': DRLPDE_param_solver.dt,
-                        'num_batch': DRLPDE_param_solver.num_batch,
-                        'num_ghost': DRLPDE_param_solver.num_ghost,
-                        'tol': DRLPDE_param_solver.tol
-                       }
-    
-    eval_model_param={'dt': DRLPDE_param_solver.dt,
-                      'forcing': DRLPDE_param.forcing}
     
     ### Import functions
     if is_unsteady:
         # Include time range in bounding box
         boundingbox.append(DRLPDE_param.time_range)
         init_con = DRLPDE_param.init_con
-        
-        if pde_type == 'NavierStokes':
-            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_NS_unsteady
-        elif pde_type == 'Parabolic':
-            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Parabolic
-        elif pde_type == 'StokesFlow':
-            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Stokes_unsteady
-    else:
-        if pde_type == 'NavierStokes':
-            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_NS_steady
-        elif pde_type == 'Elliptic':
-            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Elliptic
-        elif pde_type == 'StokesFlow':
-            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Stokes_steady
-    
-    if pde_type == 'NavierStokes' or 'StokesFlow':
-        evaluate_model = DRLPDE_functions.EvaluateWalkers.evaluate_model_NS
-    else:
-        evaluate_model = DRLPDE_functions.EvaluateWalkers.evaluate_model_PDE
-        
-        move_walkers_param["drift"] = DRLPDE_param.drift
-        eval_model_param["reaction"] = DRLPDE_param.reaction
     
     ### Organize parameters related to deep learning solver
     num_walkers = DRLPDE_param_solver.num_walkers
-    num_ghost = DRLPDE_param_solver.num_ghost
     num_batch = DRLPDE_param_solver.num_batch
-
-    update_walkers = DRLPDE_param_solver.update_walkers
     update_walkers_every = DRLPDE_param_solver.update_walkers_every
-
+    
     num_bdry = DRLPDE_param_solver.num_bdry
     num_batch_bdry = DRLPDE_param_solver.num_batch_bdry
 
@@ -129,10 +94,8 @@ def maintraining(param='DRLPDE_param_problem',
                                                   list_of_periodic_boundaries)
     
     ### Initialize the Model
-    if pde_type == 'NavierStokes' or 'StokesFlow':
-        MyNeuralNetwork = DRLPDE_nn.IncompressibleNN
-    else:
-        MyNeuralNetwork = DRLPDE_nn.FeedForwardNN
+    MyNeuralNetwork = DRLPDE_nn.IncompressibleNN
+
 
     if DRLPDE_param.loadmodel:
         model = MyNeuralNetwork(**nn_param).to(dev)
@@ -151,9 +114,6 @@ def maintraining(param='DRLPDE_param_problem',
     RWalkers = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
     RWalkers_batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
 
-    if update_walkers == 'move':
-        move_RWalkers = torch.zeros_like(RWalkers.location)
-
     if there_are_boundaries:
         BPoints = DRLPDE_functions.DefineDomain.Boundary_Data(num_bdry, boundingbox, Domain.boundaries, is_unsteady)
         BPoints_batch = torch.utils.data.DataLoader(BPoints, batch_size=num_batch_bdry, shuffle=True)
@@ -171,30 +131,17 @@ def maintraining(param='DRLPDE_param_problem',
     for step in range(num_epoch):
 
         # Random Walkers - do in batches
-        for Xold, index in RWalkers_batch:
+        for X, index in RWalkers_batch:
 
             # Send to GPU and set requires grad flag
-            Xold = Xold.to(dev).requires_grad_(True)
+            X = X.to(dev).requires_grad_(True)
+            U = model(X)
 
-            # Evaluate at old location and Move walkers
-            Xnew, Uold, outside = move_Walkers(Xold, model, Domain, **move_walkers_param)
+            Target = DRLPDE_nn.evaluate_vB(U, X)
 
-            # Evaluate at new location and average
-            Target = evaluate_model(Xold.repeat(num_ghost,1), Xnew, model, **eval_model_param).reshape(num_ghost, 
-                                                                                 num_batch,
-                                                                                 output_dim).mean(0)
-            
             # Calculate loss
-            loss = lambda_bell*mseloss(Uold, Target.detach())
+            loss = lambda_bell*mseloss(Target, torch.zeros_like(U))
             loss.backward()
-
-            # If moving walkers save the first ghost walker
-            if update_walkers == 'move':
-                if any(outside):
-                    Xnew[:num_batch,:][outside,:] = DRLPDE_functions.DefineDomain.generate_interior_points(torch.sum(outside), 
-                                                                                              boundingbox,
-                                                                                              Domain.boundaries).to(dev)
-                move_RWalkers[index,:] = Xnew[:num_batch].detach().cpu()
 
 
         # Boundary Points - do in batches
@@ -222,12 +169,8 @@ def maintraining(param='DRLPDE_param_problem',
         # Update walkers
 
         if (step+1) % update_walkers_every == 0:
-            if update_walkers == 'move':
-                RWalkers.location = move_RWalkers
-                RWalkers_Batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
-            elif update_walkers == 'remake':
-                RWalkers = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
-                RWalkers_Batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
+            RWalkers = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
+            RWalkers_Batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
 
         # Print statements
         if step == 0:
@@ -253,7 +196,7 @@ if __name__ == "__main__":
 
     ### Main training step ###
     import argparse
-    parser = argparse.ArgumentParser(description="Starts the Deep Reinforcement Learning of PDEs")
+    parser = argparse.ArgumentParser(description="Automatic differentiation of NNs to solve PDEs")
     parser.add_argument('-example', type=str)
     parser.add_argument('-use_cuda', type=bool)
     

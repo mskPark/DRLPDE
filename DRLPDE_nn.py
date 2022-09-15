@@ -3,6 +3,74 @@
 import torch
 import torch.nn as nn
 
+### Derivative Operations on Neural Networks
+### They are built on top of each other to minimize gradient calculations
+
+def gradient(y,x):
+    ### Calculates the gradient
+    ### x - torch vector (Npoints x dim_in)
+    ### y - torch scalar (Npoints)
+    ### gradient - torch tensor (Npoints x dim_in)
+    ###
+    ### Careful: If y vector, then gradient will be sum of gradients of y_i
+
+    gradient = torch.autograd.grad(y, x, grad_outputs=torch.ones_like(y), create_graph=True)[0]
+    return gradient
+    
+def jacobian(y,x):
+    ### Calculates the Jacobian
+    ### x - torch vector (Npoints x dim_in)
+    ### y - torch vector (Npoints x dim_out)
+    ### J - torch tensor (Npoints x dim_in x dim_out)
+
+    J = torch.empty(x.size(0), y.size(1), x.size(1))
+
+    for ii in range(y.size(1)):
+        J[:,ii,:] = gradient(y[:,ii],x)
+    return J
+
+def divergence(y,x):
+    ### dim_in = dim_out
+    ### x - torch vector (Npoints x dim_in)
+    ### y - torch vector (Npoints x dim_out)
+    ### div - torch tensor (Npoints x dim_in)
+    ### 
+
+    div = torch.empty(x.size(0))
+    for ii in range(y.size(1)):
+        div += gradient(y[:,ii],x)[:,ii]
+    return div
+
+def laplace(y,x,J):
+    
+    lap = torch.empty(x.size(0), y.size(1))
+    for ii in range(y.size(1)):
+        grad = J[:,ii,:]
+        lap[:,ii] = divergence(grad,x)
+    return lap
+
+def advection(y,x, J):
+    ###
+    advec = torch.empty(x.size(0), y.size(1))
+    for ii in range(y.size(1)):
+        advec[:,ii] = torch.sum( J[:,ii,:y.size(1)] * y, dim=1)
+    return advec
+
+def evaluate_vB(y,x):
+    ### dim_in
+    ### dim_out
+    ### Update derivative operators to allow for time derivative
+    ###
+
+    J = jacobian(y,x)
+    L = laplace(y,x, J)
+    A = advection(y,x, J)
+    T = J[:,:,-1]
+
+    vB = T + A - L
+
+    return vB
+
 class IncompressibleNN(nn.Module):
     
     ### Incompressible neural network
@@ -50,7 +118,6 @@ class IncompressibleNN(nn.Module):
         u = self.curl(a, x)
             
         return u
-
 
 class FeedForwardNN(nn.Module):
     

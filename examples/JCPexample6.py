@@ -12,8 +12,8 @@ global L_height, v0
 
 ############## Save model and/or Load model ##############
 
-savemodel = 'JCPexample6'
-loadmodel = 'JCPexample6'
+savemodel = 'JCPexample6_PINNs'
+loadmodel = ''
 
 # Physical Dimension
 x_dim = 2

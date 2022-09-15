@@ -16,8 +16,8 @@ num_batch = 2**11
 #    move -- moves walkers to one of their new locations
 #    remake -- remake walkers at each training step
 #    fixed -- keeps walkers fixed
-update_walkers = 'move'
-update_walkers_every = 1
+update_walkers = 'remake'
+update_walkers_every = 100
 
 # Number of boundary points 
 num_bdry = 2**12
@@ -30,8 +30,8 @@ num_batch_init = 2**9
 ############## Training Parameters #######################
 
 # Training epochs
-num_epoch = 2000
-update_print_every = 500
+num_epoch = 500
+update_print_every = 100
 
 # Neural Network Architecture
 nn_depth = 60

@@ -2,6 +2,9 @@
 ### This module contains the functions moving and evaluating the walkers
 ###
 
+### TODO: Add functions that perform finite difference operations
+
+
 import torch
 import math
 import numpy as np

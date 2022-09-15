@@ -13,7 +13,7 @@ class Domain:
 
     def __init__(self, is_unsteady, boundingbox, 
                 list_of_dirichlet_boundaries,
-                list_of_periodic_boundaries):
+                list_of_periodic_boundaries=False):
         
         self.boundingbox = boundingbox
         self.is_unsteady = is_unsteady
