@@ -45,7 +45,7 @@ def laplace(y,x,J):
     
     lap = torch.empty(x.size(0), y.size(1), device=x.device)
     for ii in range(y.size(1)):
-        grad = J[:,ii,:]
+        grad = J[:,ii,:y.size(1)]
         lap[:,ii] = divergence(grad,x)
     return lap
 
