@@ -7,7 +7,7 @@ dt = 1e-4
 tol = 1e-6
 
 # Number of walkers
-num_walkers = 2**14
+num_walkers = 2**12
 num_ghost = 128
 num_batch = 2**12
 
@@ -17,15 +17,15 @@ num_batch = 2**12
 #    remake -- remake walkers at each training step
 #    fixed -- keeps walkers fixed
 update_walkers = 'remake'
-update_walkers_every = 100
+update_walkers_every = 10
 
 # Number of boundary points 
 num_bdry = 2**12
-num_batch_bdry = 2**9
+num_batch_bdry = 2**12
 
 # Number of initial points
 num_init = 2**12
-num_batch_init = 2**9
+num_batch_init = 2**12
 
 ############## Training Parameters #######################
 
@@ -38,7 +38,7 @@ nn_depth = 60
 nn_width = 4
 
 # Weighting of losses
-lambda_bell = 1e-1 # 1e-2/dt
+lambda_bell = 1e-3 # 1e-2/dt
 lambda_bdry = 1e2
 lambda_init = 1e-1
 
