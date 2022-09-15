@@ -23,7 +23,7 @@ def jacobian(y,x):
     ### y - torch vector (Npoints x dim_out)
     ### J - torch tensor (Npoints x dim_in x dim_out)
 
-    J = torch.empty(x.size(0), y.size(1), x.size(1))
+    J = torch.empty(x.size(0), y.size(1), x.size(1), device=x.device)
 
     for ii in range(y.size(1)):
         J[:,ii,:] = gradient(y[:,ii],x)
@@ -36,14 +36,14 @@ def divergence(y,x):
     ### div - torch tensor (Npoints x dim_in)
     ### 
 
-    div = torch.empty(x.size(0))
+    div = torch.empty(x.size(0), device=x.device)
     for ii in range(y.size(1)):
         div += gradient(y[:,ii],x)[:,ii]
     return div
 
 def laplace(y,x,J):
     
-    lap = torch.empty(x.size(0), y.size(1))
+    lap = torch.empty(x.size(0), y.size(1), device=x.device)
     for ii in range(y.size(1)):
         grad = J[:,ii,:]
         lap[:,ii] = divergence(grad,x)
@@ -51,7 +51,7 @@ def laplace(y,x,J):
 
 def advection(y,x, J):
     ###
-    advec = torch.empty(x.size(0), y.size(1))
+    advec = torch.empty(x.size(0), y.size(1), device=x.device)
     for ii in range(y.size(1)):
         advec[:,ii] = torch.sum( J[:,ii,:y.size(1)] * y, dim=1)
     return advec

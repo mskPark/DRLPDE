@@ -7,9 +7,9 @@ dt = 1e-4
 tol = 1e-6
 
 # Number of walkers
-num_walkers = 2**13
+num_walkers = 2**14
 num_ghost = 128
-num_batch = 2**11
+num_batch = 2**12
 
 # Update walkers
 # Options: 
@@ -30,20 +30,20 @@ num_batch_init = 2**9
 ############## Training Parameters #######################
 
 # Training epochs
-num_epoch = 500
-update_print_every = 100
+num_epoch = 2000
+update_print_every = 1000
 
 # Neural Network Architecture
 nn_depth = 60
 nn_width = 4
 
 # Weighting of losses
-lambda_bell = 1e2 # 1e-2/dt
+lambda_bell = 1e-1 # 1e-2/dt
 lambda_bdry = 1e2
 lambda_init = 1e-1
 
 # Learning rate
-learning_rate = 1e-3
+learning_rate = 1e-2
 adam_beta = (0.9,0.999)
 weight_decay = 0
 
