@@ -1,9 +1,11 @@
+###
 ### Neural Networks
+###
 
 import torch
 import torch.nn as nn
 
-### Derivative Operations on Neural Networks
+### Automatic Differentiation of Neural Networks wrt space/time
 ### They are built on top of each other to minimize gradient calculations
 
 def gradient(y,x):
@@ -56,11 +58,10 @@ def advection(y,x, J):
         advec[:,ii] = torch.sum( J[:,ii,:y.size(1)] * y, dim=1)
     return advec
 
-def evaluate_vB(y,x):
+def autodiff_vB(y,x):
     ### dim_in
     ### dim_out
     ### Update derivative operators to allow for time derivative
-    ###
 
     J = jacobian(y,x)
     L = laplace(y,x, J)
@@ -70,6 +71,10 @@ def evaluate_vB(y,x):
     vB = T + A - L
 
     return vB
+
+### Numerical Derivatives
+
+### Neural Network Architectures
 
 class IncompressibleNN(nn.Module):
     
@@ -172,3 +177,11 @@ class ResNetNN(nn.Module):
         a = self.ff_out(out)
 
         return a
+
+### Loss function
+
+def LossEverywhere(y,target):
+    loss = (y - target)**2
+    return loss
+
+

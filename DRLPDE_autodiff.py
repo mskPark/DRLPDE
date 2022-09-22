@@ -20,7 +20,6 @@ def maintraining(param='DRLPDE_param_problem',
     
     import DRLPDE_nn
     import DRLPDE_functions.DefineDomain
-    import DRLPDE_functions.EvaluateDerivatives
 
     torch.set_default_dtype(torch.float64)
     
@@ -110,10 +109,15 @@ def maintraining(param='DRLPDE_param_problem',
                            betas=DRLPDE_param_solver.adam_beta, 
                            weight_decay=DRLPDE_param_solver.weight_decay)
 
-    ### Create Walkers and Boundary points and Organize into DataLoader
-    RWalkers = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
-    RWalkers_batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
+    ### Create Interior points: InPoints 
+    ### Organize into DataLoader
+    InPoints = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
+    InPoints_batch = torch.utils.data.DataLoader(InPoints, batch_size=num_batch, shuffle=True)
 
+    ResamplePoints = torch.zeros_like(InPoints.location)
+
+    ### Create Boundary points: BPoints
+    ### Organize into DataLoader
     if there_are_boundaries:
         BPoints = DRLPDE_functions.DefineDomain.Boundary_Data(num_bdry, boundingbox, Domain.boundaries, is_unsteady)
         BPoints_batch = torch.utils.data.DataLoader(BPoints, batch_size=num_batch_bdry, shuffle=True)
@@ -121,6 +125,8 @@ def maintraining(param='DRLPDE_param_problem',
     if is_unsteady:
         InitPoints = DRLPDE_functions.DefineDomain.Initial_Data(num_init, boundingbox, Domain.boundaries, init_con)
         InitPoints_batch = torch.utils.data.DataLoader(InitPoints, batch_size=num_batch_init, shuffle=True)
+
+    
 
     ################ Training the model #################
     
@@ -130,21 +136,37 @@ def maintraining(param='DRLPDE_param_problem',
 
     for step in range(num_epoch):
 
-        # Random Walkers - do in batches
-        for X, index in RWalkers_batch:
+        # Interior Points
+        for X, index in InPoints_batch:
 
             # Send to GPU and set requires grad flag
             X = X.to(dev).requires_grad_(True)
             U = model(X)
 
-            Target = DRLPDE_nn.evaluate_vB(U, X)
+            Target = DRLPDE_nn.autodiff_vB(U, X)
 
-            # Calculate loss
-            loss = lambda_bell*mseloss(Target, torch.zeros_like(U))
-            loss.backward()
+            # Calculate loss at each point
+            loss_everywhere = DRLPDE_nn.LossEverywhere(Target, torch.zeros_like(U))
 
+            ### Rejection sampling
+            # Calculate Loss at each point - not sum it up
+            # Calculate the max loss
+            # Sample uniformly from 0 to max loss
+            # If original value is less than new value, then resample the corresponding point
+            
+            max_loss = torch.max(loss_everywhere).detach()
+            check_sample = max_loss*torch.random.rand(Target.shape)
+            resample = loss_everywhere < check_sample
+            if torch.any(resample):
+                Xnew = X.data()
+                Xnew[resample,:] = DRLPDE_functions.DefineDomain.Walker_Data(torch.sum(resample), boundingbox, Domain.boundaries)
+                ResamplePoints[index,:] = Xnew
 
-        # Boundary Points - do in batches
+            ### Backwards pass
+            total_loss = torch.mean(loss_everywhere)
+            total_loss.backward()
+
+        # Boundary Points
         if there_are_boundaries:
             for Xbdry, Ubtrue in BPoints_batch:
                 Xbdry = Xbdry.to(dev).requires_grad_(True)
@@ -153,7 +175,7 @@ def maintraining(param='DRLPDE_param_problem',
                 loss = lambda_bdry*mseloss(Ubdry, Ubtrue)
                 loss.backward()
 
-        # Initial Points - do in batches
+        # Initial Points
         if is_unsteady:
             for Xinit, Uinit_true in InitPoints_batch:
                 Xinit = Xinit.to(dev).requires_grad_(True)
@@ -169,8 +191,9 @@ def maintraining(param='DRLPDE_param_problem',
         # Update walkers
 
         if (step+1) % update_walkers_every == 0:
-            RWalkers = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
-            RWalkers_Batch = torch.utils.data.DataLoader(RWalkers, batch_size=num_batch, shuffle=True)
+            InPoints.location = ResamplePoints
+            #InPoints = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
+            InPoints_Batch = torch.utils.data.DataLoader(InPoints, batch_size=num_batch, shuffle=True)
 
         # Print statements
         if step == 0:
