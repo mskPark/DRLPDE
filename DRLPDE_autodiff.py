@@ -146,7 +146,7 @@ def maintraining(param='DRLPDE_param_problem',
             Target = DRLPDE_nn.autodiff_vB(U, X)
 
             # Calculate loss at each point
-            loss_everywhere = DRLPDE_nn.LossEverywhere(Target, torch.zeros_like(U))
+            loss_everywhere = torch.norm(Target, dim=1)
 
             ### Rejection sampling
             # Calculate Loss at each point - not sum it up
@@ -155,16 +155,16 @@ def maintraining(param='DRLPDE_param_problem',
             # If original value is less than new value, then resample the corresponding point
             
             max_loss = torch.max(loss_everywhere).detach()
-            check_sample = max_loss*torch.random.rand(Target.shape)
+            check_sample = max_loss*torch.rand(X.size(0), device=X.device)
             resample = loss_everywhere < check_sample
             if torch.any(resample):
-                Xnew = X.data()
-                Xnew[resample,:] = DRLPDE_functions.DefineDomain.Walker_Data(torch.sum(resample), boundingbox, Domain.boundaries)
+                Xnew = X.data.cpu()
+                Xnew[resample,:] = DRLPDE_functions.DefineDomain.generate_interior_points(torch.sum(resample), boundingbox, Domain.boundaries)
                 ResamplePoints[index,:] = Xnew
 
             ### Backwards pass
-            total_loss = torch.mean(loss_everywhere)
-            total_loss.backward()
+            loss = torch.mean(loss_everywhere)
+            loss.backward()
 
         # Boundary Points
         if there_are_boundaries:
@@ -189,10 +189,8 @@ def maintraining(param='DRLPDE_param_problem',
         optimizer.zero_grad()
 
         # Update walkers
-
         if (step+1) % update_walkers_every == 0:
             InPoints.location = ResamplePoints
-            #InPoints = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
             InPoints_Batch = torch.utils.data.DataLoader(InPoints, batch_size=num_batch, shuffle=True)
 
         # Print statements

@@ -17,7 +17,7 @@ num_batch = 2**12
 #    remake -- remake walkers at each training step
 #    fixed -- keeps walkers fixed
 update_walkers = 'remake'
-update_walkers_every = 10
+update_walkers_every = 1
 
 # Number of boundary points 
 num_bdry = 2**12
@@ -30,16 +30,16 @@ num_batch_init = 2**12
 ############## Training Parameters #######################
 
 # Training epochs
-num_epoch = 2000
-update_print_every = 1000
+num_epoch = 1000
+update_print_every = 100
 
 # Neural Network Architecture
 nn_depth = 60
 nn_width = 4
 
 # Weighting of losses
-lambda_bell = 1e-3 # 1e-2/dt
-lambda_bdry = 1e2
+lambda_bell = 1e0 # 1e-2/dt
+lambda_bdry = 1e4
 lambda_init = 1e-1
 
 # Learning rate
