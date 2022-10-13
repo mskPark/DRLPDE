@@ -3,10 +3,10 @@
   + Quick method of checking if walker is in which boundary
   + Tree structure for optimal region checking
 
-- Importance sampling
-  + Use loss to remove points -- low loss, can remove (with probability?)
-  + Maybe remove a fraction and resample to keep same number
-  
+- Number of boundary points
+  + Utilize the length/area of the boundary to divide up the total number of points evenly
+  + 
+
 - Different boundary types
   + curves (x, f(x)), (g(y), y)
   + cubic splines given a sequence of points (Bezier curves)
@@ -16,8 +16,6 @@
   + surfaces (x, y, f(x,y)), (x, g(x,z), z), (h(y,z), y, z)
   
 - Girsanov Theorem
-
-- Finding an actual point on the boundary instead of closest up to a tolerance
 
 - How to evaluate integral in reaction and forcing terms (right now using right-end evaluation)
 

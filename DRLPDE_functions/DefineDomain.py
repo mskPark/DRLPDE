@@ -2,9 +2,18 @@
 ### This module contains the classes pertaining to making the Domain
 ###
 
+### Domain is defined as the intersection of domains
+### TODO: Define as union of domains
+###
+
+### TODO: Put all domain classes into their own modules
+### 
+
 import torch
 import math
 import numpy as np
+
+#from DomainTypes import Bdry2D, Bdry3D
 
 ### Domain
 class Domain:

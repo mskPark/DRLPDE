@@ -4,6 +4,7 @@
 
 ### TODO: Add functions that perform finite difference operations
 
+### TODO: Add higher-order SDE simulators
 
 import torch
 import math
@@ -225,3 +226,9 @@ def evaluate_model_PDE(Xold, Xnew, model, dt, forcing, reaction, **eval_model_pa
     Target = model(Xnew)*torch.exp( reaction(Xnew)*dt) + (forcing(Xold) + forcing(Xnew))*dt/2
     
     return Target
+
+
+def evaluate_AutoDiff():
+
+    pass
+

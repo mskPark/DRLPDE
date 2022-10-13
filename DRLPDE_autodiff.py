@@ -48,6 +48,7 @@ def maintraining(param='DRLPDE_param_problem',
     is_unsteady = DRLPDE_param.is_unsteady
     output_dim = DRLPDE_param.output_dim
 
+
     there_are_boundaries = bool(list_of_dirichlet_boundaries)
     
     nn_param = {'depth': DRLPDE_param_solver.nn_depth,
@@ -66,7 +67,7 @@ def maintraining(param='DRLPDE_param_problem',
     ### Organize parameters related to deep learning solver
     num_walkers = DRLPDE_param_solver.num_walkers
     num_batch = DRLPDE_param_solver.num_batch
-    update_walkers_every = DRLPDE_param_solver.update_walkers_every
+    update_walkers_every = 10 #DRLPDE_param_solver.update_walkers_every
     
     num_bdry = DRLPDE_param_solver.num_bdry
     num_batch_bdry = DRLPDE_param_solver.num_batch_bdry
@@ -114,8 +115,6 @@ def maintraining(param='DRLPDE_param_problem',
     InPoints = DRLPDE_functions.DefineDomain.Walker_Data(num_walkers, boundingbox, Domain.boundaries)
     InPoints_batch = torch.utils.data.DataLoader(InPoints, batch_size=num_batch, shuffle=True)
 
-    ResamplePoints = torch.zeros_like(InPoints.location)
-
     ### Create Boundary points: BPoints
     ### Organize into DataLoader
     if there_are_boundaries:
@@ -127,44 +126,76 @@ def maintraining(param='DRLPDE_param_problem',
         InitPoints_batch = torch.utils.data.DataLoader(InitPoints, batch_size=num_batch_init, shuffle=True)
 
     
+    ################ Training functions #################
 
-    ################ Training the model #################
-    
-    #print("Training has begun")
-    
-    start_time = time.time()
 
-    for step in range(num_epoch):
+    def train_interior(Batch, model, max_loss, do_resample=False):
 
-        # Interior Points
-        for X, index in InPoints_batch:
+        ### Indices to resample
+        ### dtype might be unnecessarily big
+        resample_index = torch.tensor([], dtype=torch.int64)
 
-            # Send to GPU and set requires grad flag
-            X = X.to(dev).requires_grad_(True)
+        for X, index in Batch:
+            X.to(dev).requires_grad_(True)
             U = model(X)
 
             Target = DRLPDE_nn.autodiff_vB(U, X)
 
-            # Calculate loss at each point
-            loss_everywhere = torch.norm(Target, dim=1)
+            loss = torch.norm(Target, dim=1)
 
-            ### Rejection sampling
-            # Calculate Loss at each point - not sum it up
-            # Calculate the max loss
-            # Sample uniformly from 0 to max loss
-            # If original value is less than new value, then resample the corresponding point
-            
-            max_loss = torch.max(loss_everywhere).detach()
-            check_sample = max_loss*torch.rand(X.size(0), device=X.device)
-            resample = loss_everywhere < check_sample
-            if torch.any(resample):
-                Xnew = X.data.cpu()
-                Xnew[resample,:] = DRLPDE_functions.DefineDomain.generate_interior_points(torch.sum(resample), boundingbox, Domain.boundaries)
-                ResamplePoints[index,:] = Xnew
+            if do_resample:
+                ### Rejection sampling ###
+                # generate uniform( max_loss )
+                # Compare sample < uniform
+                # Then resample
+                check_sample = max_loss*torch.rand(X.size(0), device=X.device)
+                resample_index = torch.cat( (resample_index, index[loss < check_sample]))
 
-            ### Backwards pass
-            loss = torch.mean(loss_everywhere)
+                ### Recalculate max loss
+                max_loss = torch.max( max_loss, torch.sqrt( torch.max(loss).data ))
+
+            loss = torch.mean( loss )
+
+        return loss, max_loss, resample_index
+
+    #print("Training has begun")
+
+    # First step
+    loss, max_loss, resample_index = train_interior(InPoints_batch, model, torch.tensor([100]))
+
+    loss.backward
+
+    # Boundary Points
+    if there_are_boundaries:
+        for Xbdry, Ubtrue in BPoints_batch:
+            Xbdry = Xbdry.to(dev).requires_grad_(True)
+            Ubtrue = Ubtrue.to(dev).detach()
+            Ubdry = model(Xbdry)
+            loss = lambda_bdry*mseloss(Ubdry, Ubtrue)
             loss.backward()
+
+    # Initial Points
+        if is_unsteady:
+            for Xinit, Uinit_true in InitPoints_batch:
+                Xinit = Xinit.to(dev).requires_grad_(True)
+                Uinit_true = Uinit_true.to(dev).detach()
+                Uinit = model(Xinit)
+                loss = lambda_init*mseloss(Uinit, Uinit_true)
+                loss.backward()
+
+    # Make optimization step
+    optimizer.step()
+    optimizer.zero_grad()
+
+    print('No errors in first epoch')
+    start_time = time.time()
+
+    for step in range(num_epoch):
+
+        do_resample = (step+1) % update_walkers_every == 0 
+        loss, max_loss, resample_index = train_interior(InPoints_batch, model, max_loss, do_resample)
+
+        loss.backward
 
         # Boundary Points
         if there_are_boundaries:
@@ -189,13 +220,12 @@ def maintraining(param='DRLPDE_param_problem',
         optimizer.zero_grad()
 
         # Update walkers
-        if (step+1) % update_walkers_every == 0:
-            InPoints.location = ResamplePoints
+        if do_resample and any(resample_index):
+            InPoints.location[resample_index,:] = DRLPDE_functions.DefineDomain.generate_interior_points(resample_index.size(0), boundingbox, Domain.boundaries)
             InPoints_Batch = torch.utils.data.DataLoader(InPoints, batch_size=num_batch, shuffle=True)
 
         # Print statements
         if step == 0:
-            print('No errors in first epoch')
             current_time = time.time()
             print('Approx time: {:.0f} minutes'.format((current_time - start_time)*num_epoch/60))
         if (step+1) % update_print_every == 0:

@@ -1,8 +1,11 @@
 # Deep Reinforcement Learning for solving Partial Differential Equations
 
-An unsupervised deep reinforcement learning framework that solves Initial Boundary Value Problems (IBVP) of Partial Differential Equations (PDE)
+A self-supervised deep reinforcement learning framework that solves Initial Boundary Value Problems (IBVP) of Partial Differential Equations (PDE)
 
-A neural network is trained to satisfy the martingale condition corresponding to the PDE
+There are several options for self-supervision:
+- Finite difference methods to encode the PDE
+- Automatic differentiation to encode the PDE
+- A martingale condition corresponding to the PDE
 
 ## Features:
 - Types of PDEs:
@@ -10,7 +13,6 @@ A neural network is trained to satisfy the martingale condition corresponding to
     + Parabolic
     + Stokes flow
     + Navier-Stokes
-    + (TODO) Non-linear through Newton's method
 - Types of Domains:
     + 2D -- An intersection of 2D shapes (half-planes, disks)
     + 3D -- An intersection of 3D shapes (half-spaces, spheres, cylinders)

@@ -41,7 +41,7 @@ plot_levels = np.linspace(-1,1,100)
 
 # PDE type:
 #     NavierStokes, StokesFlow, Elliptic, Parabolic
-pde_type = 'Elliptic'
+pde_type = 'StokesFlow'
 
 # Diffusion coefficient
 mu = 0.1
@@ -77,6 +77,7 @@ def init_con(X):
 ###
 ### See doc/param_problem.md for usage details
 ###
+### Domain is Fucked
 
 boundingbox = [ [-3,3], [-2,2] ]
 

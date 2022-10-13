@@ -1,6 +1,6 @@
 #########   Deep Reinforcement Learning of Partial Differential Equations
 
-#########   Built-in packages
+#########   Required packages
 
 import numpy as np
 import math
@@ -9,6 +9,10 @@ import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+# Set pytorch default type
+torch.set_default_dtype(torch.float64)
+
 
 ##########   Main execution
 
@@ -21,7 +25,6 @@ def maintraining(param='DRLPDE_param_problem',
     import DRLPDE_nn
     import DRLPDE_functions.DefineDomain
     import DRLPDE_functions.EvaluateWalkers
-    torch.set_default_dtype(torch.float64)
     
     import importlib
     
@@ -139,7 +142,7 @@ def maintraining(param='DRLPDE_param_problem',
         model.load_state_dict(torch.load("savedmodels/" + DRLPDE_param.loadmodel + ".pt"))
         print("Using model from savedmodels/" + DRLPDE_param.loadmodel + ".pt")
     else:
-        model = MyNeuralNetwork(**nn_param).to(dev)
+        model = MyNeuralNetwork(**nn_param) #.to(dev)
 
     mseloss = nn.MSELoss(reduction = 'mean')
     optimizer = optim.Adam(model.parameters(), 
@@ -167,6 +170,12 @@ def maintraining(param='DRLPDE_param_problem',
     #print("Training has begun")
     
     start_time = time.time()
+
+    ### TODO: Do one step
+
+    ### Importance Sampling
+
+    ### Run the training loop
 
     for step in range(num_epoch):
 

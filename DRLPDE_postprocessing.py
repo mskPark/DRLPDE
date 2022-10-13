@@ -2,6 +2,16 @@
 ### Plotting file 
 ###
 
+### Options for plotting 2D scalar functions
+### surf with meshgrid
+### 
+### pcolormesh with non-regular rectangular grid
+###    Does not work with random sampling of domain
+###    Requires the mesh points to specify corners of a quadrilateral
+###
+### Currently uses tricontourf
+###    Draws filled contour regions on an unstructured grid
+
 import numpy as np
 import matplotlib.pyplot as plt
 

@@ -3,14 +3,11 @@
 ## Save/Load model
 
 
-
-
 ## Physical Parameters
 
 I recommend making including other physical parameters 
 eg. lidspeed in Cavity Flow, inlet velocity in Flow Past Disk
 Remember to make it a global variable
-
 
 ## Partial Differential Equation
 
