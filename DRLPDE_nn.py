@@ -23,7 +23,7 @@ def jacobian(y,x):
     ### Calculates the Jacobian
     ### x - torch vector (Npoints x dim_in)
     ### y - torch vector (Npoints x dim_out)
-    ### J - torch tensor (Npoints x dim_in x dim_out)
+    ### J - torch tensor (Npoints x dim_out x dim_in)
 
     J = torch.empty(x.size(0), y.size(1), x.size(1), device=x.device)
 
@@ -58,7 +58,7 @@ def advection(y,x, J):
         advec[:,ii] = torch.sum( J[:,ii,:y.size(1)] * y, dim=1)
     return advec
 
-def autodiff_vB(y,x):
+def ViscousBurgers(y,x):
     ### dim_in
     ### dim_out
     ### Update derivative operators to allow for time derivative
@@ -72,21 +72,26 @@ def autodiff_vB(y,x):
 
     return vB
 
+
 ### Numerical Derivatives
 ###   At random points, perform finite difference to approximate derivatives
 ###   Combine Linear Multistep methods (Adam Bashforth) and Runge-Kutta methods for time dependent problems
 ###   Can utilize implicit formulas for better stability?
 
-def forward_diff(y,x):
+def forward_diff(x, model):
+    ###
+    ### 1/h * ( model(x + h) - model(x) )
 
     pass
 
 def backward_diff(y,x):
-
+    ###
+    ### 1/h * ( model( x - h) - model(x) )
     pass
 
 def center_diff(y,x):
-
+    ###
+    ### 1/2/h * ( model(x + h) - model(x - h) )
     pass
 
 ### Neural Network Architectures

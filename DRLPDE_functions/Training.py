@@ -21,14 +21,18 @@ for step in numsteps
 # Output: averaged loss, max of loss
 # Do loss.backward() outside?
 
-def train_interior(Batch, model, max_loss, resample_index, do_resample=False):
+def train_interior(Batch, model, max_loss, do_resample=False):
+    ### Call from DRLPDE_nn, EvaluateWalkers for calculating Target value
+    ### Include input parameters: device, generate_target
+    ###
 
     ### Indices to resample
     ### dtype might be unnecessarily big
     resample_index = torch.tensor([], dtype=torch.int64)
+    new_max = torch.tensor([0], dtype=torch.float64)
 
     for X, index in Batch:
-        X.to(dev).requires_grad_(True)
+        X = X.to(dev).requires_grad_(True)
         U = model(X)
 
         Target = DRLPDE_nn.autodiff_vB(U, X)
@@ -37,23 +41,29 @@ def train_interior(Batch, model, max_loss, resample_index, do_resample=False):
 
         if do_resample:
             ### Rejection sampling ###
+            # Use the provided max_loss
+            #     from previous iteration, always behind by 1
+            #     otherwise, would have to redo batches
             # generate uniform( max_loss )
             # Compare sample < uniform
-            # Then resample
+            # Then provide index to resample 
             check_sample = max_loss*torch.rand(X.size(0), device=X.device)
             resample_index = torch.cat( (resample_index, index[loss < check_sample]))
 
-            ### Recalculate max loss
-            max_loss = torch.max( max_loss, torch.sqrt( torch.max(loss).data ))
+        ### Recalculate max loss
+        new_max = torch.max( new_max, torch.sqrt( torch.max(loss).data ))
 
         loss = torch.mean( loss )
-    
-    return loss, max_loss, resample_index
+
+    return loss, new_max, resample_index
 
     loss.backward()
 
 
-
+def train_boundary(Batch, model):
+    ### Include input parameters: device
+    ### Maybe do importance sampling
+    pass
 
 # Send to GPU and set requires grad flag
 Xold = Xold.to(dev).requires_grad_(True)

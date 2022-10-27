@@ -1,4 +1,6 @@
-#########   Physics-Informed Solver of Partial Differential Equations
+#########   Finite Difference Solver
+##
+## Unfinished
 
 #########   Built-in packages
 
@@ -253,7 +255,7 @@ if __name__ == "__main__":
 
     ### Main training step ###
     import argparse
-    parser = argparse.ArgumentParser(description="Automatic differentiation of NNs to solve PDEs")
+    parser = argparse.ArgumentParser(description="Finite Difference on Meshfree Domain to solve PDEs")
     parser.add_argument('-example', type=str)
     parser.add_argument('-use_cuda', type=bool)
     

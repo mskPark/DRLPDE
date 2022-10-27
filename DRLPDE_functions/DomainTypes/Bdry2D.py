@@ -32,7 +32,7 @@ class bdry_disk:
         ### Input: bdry_pt
         ### Output the unit normal vector at that point
 
-        return (bdry_pt- self.centre)/self.radius
+        return (bdry_pt - self.centre)/self.radius
             
     def make_bdry_pts(self, num_bdry, boundingbox, is_unsteady):
         ### Make points along the boundary as well as the interior
@@ -94,7 +94,7 @@ class bdry_disk:
     
     def plot_bdry(self, num_bdry):
         ### Give uniformly spaced points along the boundary to plot
-        theta = torch.linspace(self.angles[0], self.angles[1], num_bdry)
+        theta = torch.linspace(0, 2*math.pi, num_bdry)
         Xplot = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                              self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
         
@@ -209,7 +209,6 @@ class bdry_line:
         Xplot = ( self.endpoints[1] - self.endpoints[0] )*torch.linspace(0, 1, num_bdry)[:,None] + self.endpoints[0]
         
         return Xplot
-
 
 class bdry_wedge:
 

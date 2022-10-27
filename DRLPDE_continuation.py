@@ -1,4 +1,4 @@
-#########   Physics-Informed Solver of Partial Differential Equations
+#########   Continuation Method for solving non-linear Partial Differential Equations
 
 #########   Built-in packages
 
@@ -57,6 +57,45 @@ def maintraining(param='DRLPDE_param_problem',
                 'is_unsteady':DRLPDE_param.is_unsteady,
                 'output_dim':DRLPDE_param.output_dim
                 }
+
+    move_walkers_param={'x_dim': DRLPDE_param.x_dim,
+                        'mu': DRLPDE_param.mu,
+                        'dt': DRLPDE_param_solver.dt,
+                        'num_batch': DRLPDE_param_solver.num_batch,
+                        'num_ghost': DRLPDE_param_solver.num_ghost,
+                        'tol': DRLPDE_param_solver.tol
+                       }
+    
+    eval_model_param={'dt': DRLPDE_param_solver.dt,
+                      'forcing': DRLPDE_param.forcing}
+    
+    ### Import functions
+    if is_unsteady:
+        # Include time range in bounding box
+        boundingbox.append(DRLPDE_param.time_range)
+        init_con = DRLPDE_param.init_con
+        
+        if pde_type == 'NavierStokes':
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_NS_unsteady
+        elif pde_type == 'Parabolic':
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Parabolic
+        elif pde_type == 'StokesFlow':
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Stokes_unsteady
+    else:
+        if pde_type == 'NavierStokes':
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_NS_steady
+        elif pde_type == 'Elliptic':
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Elliptic
+        elif pde_type == 'StokesFlow':
+            move_Walkers = DRLPDE_functions.EvaluateWalkers.move_Walkers_Stokes_steady
+    
+    if pde_type == 'NavierStokes' or 'StokesFlow':
+        evaluate_model = DRLPDE_functions.EvaluateWalkers.evaluate_model_NS
+    else:
+        evaluate_model = DRLPDE_functions.EvaluateWalkers.evaluate_model_PDE
+        
+        move_walkers_param["drift"] = DRLPDE_param.drift
+        eval_model_param["reaction"] = DRLPDE_param.reaction
     
     ### Import functions
     if is_unsteady:
@@ -66,8 +105,9 @@ def maintraining(param='DRLPDE_param_problem',
     
     ### Organize parameters related to deep learning solver
     num_walkers = DRLPDE_param_solver.num_walkers
+    num_ghost = DRLPDE_param_solver.num_ghost
     num_batch = DRLPDE_param_solver.num_batch
-    update_walkers_every = 10 #DRLPDE_param_solver.update_walkers_every
+    update_walkers_every = 10
     
     num_bdry = DRLPDE_param_solver.num_bdry
     num_batch_bdry = DRLPDE_param_solver.num_batch_bdry
@@ -83,6 +123,9 @@ def maintraining(param='DRLPDE_param_problem',
         num_batch_init = DRLPDE_param_solver.num_batch_init
         lambda_init = DRLPDE_param_solver.lambda_init
     
+    alpha = 1
+    update_alpha_every = 100
+    update_alpha_tick = 0.1
 
     ################ Preparing the model #################
     
@@ -135,11 +178,18 @@ def maintraining(param='DRLPDE_param_problem',
         resample_index = torch.tensor([], dtype=torch.int64)
         new_max = torch.tensor([0], dtype=torch.float64)
 
-        for X, index in Batch:
-            X = X.to(dev).requires_grad_(True)
-            U = model(X)
+        for Xold, index in Batch:
 
-            Target = DRLPDE_nn.ViscousBurgers(U, X)
+            # Send to GPU and set requires grad flag
+            Xold = Xold.to(dev).requires_grad_(True)
+
+            # Evaluate at old location and Move walkers
+            Xnew, Uold, outside = move_Walkers(Xold, model, Domain, **move_walkers_param)
+
+            # Evaluate at new location and average
+            Target = evaluate_model(Xold.repeat(num_ghost,1), Xnew, model, **eval_model_param).reshape(num_ghost, 
+                                                                                 num_batch,
+                                                                                 output_dim).mean(0)
 
             loss = torch.norm(Target, dim=1)
 
@@ -253,7 +303,7 @@ if __name__ == "__main__":
 
     ### Main training step ###
     import argparse
-    parser = argparse.ArgumentParser(description="Automatic differentiation of NNs to solve PDEs")
+    parser = argparse.ArgumentParser(description="Continuation Method to solve PDEs")
     parser.add_argument('-example', type=str)
     parser.add_argument('-use_cuda', type=bool)
     

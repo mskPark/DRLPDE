@@ -171,10 +171,6 @@ def maintraining(param='DRLPDE_param_problem',
     
     start_time = time.time()
 
-    ### TODO: Do one step
-
-    ### Importance Sampling
-
     ### Run the training loop
 
     for step in range(num_epoch):
@@ -197,6 +193,7 @@ def maintraining(param='DRLPDE_param_problem',
             loss = lambda_bell*mseloss(Uold, Target.detach())
             loss.backward()
 
+            # No importance sampling. Walkers just move
             # If moving walkers save the first ghost walker
             if update_walkers == 'move':
                 if any(outside):

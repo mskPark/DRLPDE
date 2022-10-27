@@ -1,3 +1,13 @@
+Oct 25:
+- Test_continuation, add in parameter alpha that affects the drift term and/or the bdry condition
+- Test_hyperparameter, change the input to include hyperparameters that can change such as viscosity
+
+- Density of bdry points - area for disk affects how many points needed
+  Currently the number of bdry points is picked arbitrarily. Automate the process
+  Maybe have an accuracy requirement -> number of points needed?
+
+
+
 - Split domain into 
   + For N boundaries, N+1 regions (close to i-th boundary)
   + Quick method of checking if walker is in which boundary
