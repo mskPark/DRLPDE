@@ -2,28 +2,35 @@
 
 ## Save/Load model
 
+## Specify the PDE
+Linear with variable coefficient
 
-## Physical Parameters
+Quasilinear (Navier-Stokes)
 
-I recommend making including other physical parameters 
-eg. lidspeed in Cavity Flow, inlet velocity in Flow Past Disk
-Remember to make it a global variable
+## Specify Boundary and Initial Condition functions
 
-## Partial Differential Equation
+function with torch operations to evaluate points
 
+## Parameters
 
+#### Ordering: space, time, other
 
+space dimension
 
-## Boundary and Initial Conditions
+unsteady vs steady flow
 
-
-
+other parameters
+    eg. lidspeed in Cavity Flow, inlet velocity in Flow Past Disk, viscosity
 
 ## Making the Domain
 
-First need a bounding box: $[x_1, x_2] \times [y_1, y_2] \times [z_1, z_2]$ that contains your domain
+Bounding box: $[x_1, x_2] \times [y_1, y_2] \times [z_1, z_2]$ for space parameters
 
-Use boundary classes to define the boundaries of your domain
+TimeRange: $[t0, t1]$ for time range
+
+ParamRange: $[a0, a1]$ for parameter range
+
+## Specify Boundaries
 
 #### 2D boundary classes
 
@@ -32,7 +39,7 @@ Use boundary classes to define the boundaries of your domain
 #### Periodic boundaries
 
 'variable' = 'x', 'y', 'z'
-'base' is the bottom, if variable is below, then send to top
-'top' is the top, if variable is above, then send to base
+'base' should match BoundingBox
+'top' should match BoundingBox
 
 
