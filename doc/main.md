@@ -5,13 +5,15 @@
 Goals
 - Mesh-free
 - Easy to use
-- Include hyperparameters to train for a class of PDEs
+- Include hyperparameters to train for a family of PDEs
 
 Features
 - Improve stability
 - Importance sampling
 - Guaranteed accuracy (Very hard, dependent on a lot of parameters)
-    + Size/Architecture of neural netowk
+    + Size/Architecture of neural network
+    + Measure accuracy through...
+      - If PDE satisfied up to L2 error, is solution also within L2 error?
 
 Domain description
 - Boundary curves/surfaces (inside/outside by signed distance function) 
@@ -22,8 +24,6 @@ Domain description
   Level set
   + Easy to make signed distance function
   - Hard to move along boundary (sampling is doable for type 1 / type 2 curves)
-
-
 
 ## Ideas
 
@@ -80,33 +80,39 @@ Post-training Visualization:
 
 
 ## Organization
-docs
++ docs
 - md files
 
-src
-- DRLPDE main file
-- DefineDomain file
-- CalculateLoss file
+main file
+param file
+solver file
+
+DefineDomain module
+CalculateLoss module
+NeuralNetworks module
 
 - (DRLPDE steady)
 - (DRLPDE unsteady)
 - (DRLPDE continuation)
 
-+ DomainTypes folder
-+ MethodPDE folder
-  - FiniteDifference
-  - RandomWalk
-  - AutomaticDifference
-  - ContinuationMethod
-+ NeuralNetworks
++ DomainTypes package
+  - init 
+  - Domain2D module
+  - Domain3D module
 
-test
-- JCPexample1
-- JCPexample1
-- JCPexample1
-- JCPexample1
-- JCPexample5
-- JCPexample6
++ MethodPDE package
+  - init file
+  - FiniteDifference module
+  - RandomWalk module
+  - AutomaticDifference module
+
++ test
+  - JCPexample1
+  - JCPexample1
+  - JCPexample1
+  - JCPexample1
+  - JCPexample5
+  - JCPexample6
 
 savedmodels
 

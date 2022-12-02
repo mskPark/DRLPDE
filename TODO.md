@@ -1,12 +1,15 @@
-Oct 25:
-- Test_continuation, add in parameter alpha that affects the drift term and/or the bdry condition
-- Test_hyperparameter, change the input to include hyperparameters that can change such as viscosity
 
 - Density of bdry points - area for disk affects how many points needed
   Currently the number of bdry points is picked arbitrarily. Automate the process
   Maybe have an accuracy requirement -> number of points needed?
 
-
+- Train one step:
+  + Check for errors
+  + Do importance sampling
+  + Compare interior error and boundary error
+    - From the cavity flow example, the loss terms have to be of the same order of magnitude
+    - If lambda_bdry is 1e2, then it fails to work.
+    - But if lambda_bdry is 1e0, then it works well
 
 - Split domain into 
   + For N boundaries, N+1 regions (close to i-th boundary)

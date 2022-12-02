@@ -144,6 +144,62 @@ class IncompressibleNN(nn.Module):
             
         return u
 
+class FluidNN(nn.Module):
+
+    ### Velocity Potential + Pressure
+    ### Curl + Gradient built in
+    ### Output: Velocity, Grad(Pressure)
+
+    def __init__(self, depth, width, x_dim, is_unsteady, **nn_param):
+        super(IncompressibleNN, self).__init__()
+        
+        self.x_dim = x_dim
+        self.input_dim = self.x_dim + is_unsteady
+        
+        self.dim_out = 2
+        
+        modules = []
+        modules.append(torch.nn.Linear(self.input_dim, depth))
+        for i in range(width - 1):
+            modules.append(torch.nn.Linear(depth, depth))
+            modules.append(torch.nn.Tanh())
+        modules.append(torch.nn.Linear(depth, self.dim_out))
+                       
+        self.sequential_model = torch.nn.Sequential(*modules)
+    
+    def curl(self, a, x):
+        if self.x_dim == 2:
+            
+            e = torch.eye(self.x_dim, device=x.device)
+            
+            dadx = torch.autograd.grad(a, x, grad_outputs=e[0,:].repeat(a.size(0), 1), 
+                                        create_graph=True, retain_graph = True)[0]
+            dpdx = torch.autograd.grad(a, x, grad_outputs=e[1,:].repeat(a.size(0), 1),
+                                        create_graph=True, retain_graph = True)[0]
+
+            u = torch.stack([dadx[:,1], -dadx[:,0], dpdx[:,0], dpdx[:,1]] , dim=1)
+            
+        elif self.x_dim == 3:
+            e = torch.eye(self.x_dim, device=x.device)
+
+            da0dx = torch.autograd.grad(a, x, grad_outputs=e[0,:].repeat(a.size(0), 1), 
+                                        create_graph=True, retain_graph = True)[0]
+            da1dx = torch.autograd.grad(a, x, grad_outputs=e[1,:].repeat(a.size(0), 1),
+                                        create_graph=True, retain_graph = True)[0]
+            da2dx = torch.autograd.grad(a, x, grad_outputs=e[2,:].repeat(a.size(0), 1),
+                                        create_graph=True, retain_graph = True)[0]
+
+            u = torch.stack([da2dx[:,1] - da1dx[:,2], da0dx[:,2] - da2dx[:,0], da1dx[:,0] - da0dx[:,1] ], dim=1)         
+        return u
+    
+    def forward(self, x):
+        a = self.sequential_model(x)
+        u = self.curl(a, x)
+            
+        return u    
+
+
+
 class FeedForwardNN(nn.Module):
     
     ### Feed forward neural network
@@ -198,10 +254,5 @@ class ResNetNN(nn.Module):
 
         return a
 
-### Loss function
-
-def LossEverywhere(y,target):
-    loss = (y - target)**2
-    return loss
 
 

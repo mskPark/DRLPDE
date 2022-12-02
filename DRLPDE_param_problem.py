@@ -1,5 +1,5 @@
 ###
-### Parameters
+### Parameters of the PDE problem
 ###
 
 import torch
@@ -27,7 +27,11 @@ if is_unsteady:
     time_range = [0.0, 1.0]
     plot_times = [0.0, 0.5, 1.0]
 
+# Hyperparameters
+hyper_dim = 2
+
 ################ Plotting and Error ######################
+
 # is there a True solution
 exists_analytic_sol = False
 
@@ -77,7 +81,7 @@ def init_con(X):
 ###
 ### See doc/param_problem.md for usage details
 ###
-### Domain is Fucked
+### TODO Fix
 
 boundingbox = [ [-3,3], [-2,2] ]
 
