@@ -43,3 +43,42 @@ ParamRange: $[a0, a1]$ for parameter range
 'top' should match BoundingBox
 
 
+# Input (Provided by the user)
+    #   boundingbox   - list of arrays
+    #   list_of_walls - list of dictionaries
+    #   periodic_ends - list of dictionaries
+    #   inlet_outlet  - list of dictionaries
+    #   solid_walls   - list of dictionaries
+    #   initial_con   - function
+
+    # Attributes:
+    #   boundingbox - list of arrays
+    #   wall        - list of wall classes
+    #   periodic    - list of periodic ends classes
+    #   inletoutlet - list of wall classes
+    #   solid       - list of solid wall classes
+    #   box         - list of finite difference operations
+    #   volume      - number
+
+    # Wall attributes:
+    #   bc  - function that calculates boundary condition
+    #   dim - dimension of boundary
+    #   measure - length/area of boundary
+    #   distance - function that calculates signed distance to wall
+
+    # Periodic end attributes
+    #   index: 0, 1, 2 for x, y, z respectively
+    #   bot:   number
+    #   top:   number
+
+    # Inlet Outlet attributes
+    #   bc: function that calculates pressure
+    #   dim: dimension of inlet
+    #   measure: length/area of boundary
+    #   distance: function that calculates signed distance to inlet/outlet
+
+    # Solid attirbutes:
+    #   bc - the value of the function inside the solid
+    #   dim - dimension of boundary
+    #   measure - area/volume of solid
+    #   distance - function that calculates signed distance to solid

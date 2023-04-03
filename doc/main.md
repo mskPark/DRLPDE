@@ -1,13 +1,17 @@
-## Reinforcement Learning of solutions to PDEs in irregular domains
+## Deep Reinforcement Learning of solutions to PDEs
 
-#### Explore the domain, evaluate how well we're doing, improve the estimate
+This project provides a numerical method to solve partial differential equations with boundary and/or initial conditions.
 
-Goals
+Explore the domain, evaluate how well we're doing, improve the estimate
+
+#### Features
 - Mesh-free
-- Easy to use
-- Include hyperparameters to train for a family of PDEs
+- Hyperparameters to train a family of solutions
 
-Features
+#### How to use
+- 
+
+#### TODO
 - Improve stability
 - Importance sampling
 - Guaranteed accuracy (Very hard, dependent on a lot of parameters)
@@ -17,6 +21,8 @@ Features
 
 Domain description
 - Boundary curves/surfaces (inside/outside by signed distance function) 
+    Type I, Type II, Type III regions
+  
   TODO: Use parametric equations vs level set
   Parametric equations
   + Sample and move along boundary easily
@@ -27,21 +33,36 @@ Domain description
 
 ## Ideas
 
-Keep steady vs unsteady separate
-  + Generating point data is easier this way. Keep them separate functions
-
 Continuation methods
   + Solve the linear problem. Use that as an initial guess for the non-linear problem.
   + Need a ramp up parameter
 
-## Pseudo-code
+## Pseudocode
 
-Main Training Function
-- param_problem
-- param_solver
-- use_cuda
+Define the problem
+- PDE
+  + Linear Elliptic/Parabolic
+    Drift, Reaction, Forcing, Viscosity
+  + viscous Burgers
+    Forcing, Viscosity
+  + incompressible Navier Stokes
+    Forcing, Viscosity
 
-Initialization Step
+- Learning Method
+  + Martingale
+  + AutoDiff
+
+- Domain
+  + Dirichlet walls
+    BC
+  + Periodic ends
+  + Solid walls
+    BC
+  + Inlets + Outlets
+    BC
+
+
+Initialization
 - Domain Class/Function:
   + Input: Bounding Box, List of boundaries, List of boundary conditions
   + Output: Boundary Classes
@@ -61,6 +82,7 @@ Initialization Step
 Training Step
 - In batches:
   + Make Loss at each point (interior and boundary)
+    - Send out random walk, calculate exits, evaluate 
   + Calculate Max
   + Do resampling step if necessary
     Consider resampling domain points and boundary points
@@ -84,8 +106,8 @@ Post-training Visualization:
 - md files
 
 main file
-param file
-solver file
+param_PDE file
+param_solver file
 
 DefineDomain module
 CalculateLoss module
@@ -95,16 +117,20 @@ NeuralNetworks module
 - (DRLPDE unsteady)
 - (DRLPDE continuation)
 
-+ DomainTypes package
++ domain package
   - init 
   - Domain2D module
   - Domain3D module
 
-+ MethodPDE package
-  - init file
++ method package
+  - init
   - FiniteDifference module
-  - RandomWalk module
+  - Stochastic module
   - AutomaticDifference module
+
++ PostProcessing package
+  - init
+  - 
 
 + test
   - JCPexample1

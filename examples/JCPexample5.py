@@ -8,8 +8,6 @@ import torch
 import math
 import numpy as np
 
-global lidspeed
-
 ############## Save model and/or Load model ##############
 
 savemodel = 'JCPexample5'
@@ -42,7 +40,7 @@ def true_solution(X):
 pde_type = 'StokesFlow'
 
 # Diffusion coefficient
-mu = 1
+mu = 1.0
 
 # Forcing term
 def forcing(X):

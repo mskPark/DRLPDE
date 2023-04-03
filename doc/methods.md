@@ -28,3 +28,10 @@
 
 
 #### Metropolis-Hastings
+
+# Number of boundary points determined by number of interior points
+#  Consistent average distance between points from a uniform sample of points
+#  in the interior and the boundary
+#  Mean Minimum distance for N points in a d-dimensional region of volume 
+#   (Smaller = points closer together)
+#   Asymptotic relationship ~ V/(N^{2/d})

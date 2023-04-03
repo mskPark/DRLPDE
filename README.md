@@ -1,13 +1,6 @@
 # Deep Reinforcement Learning for solving Partial Differential Equations
 
-A self-supervised deep reinforcement learning framework that solves Initial Boundary Value Problems (IBVP) of Partial Differential Equations (PDE)
-
-There are several options for self-supervision:
-- Finite difference methods to encode the PDE
-- Automatic differentiation to encode the PDE
-- A martingale condition corresponding to the PDE
-
-## Features:
+## Features
 - Types of PDEs:
     + Elliptic
     + Parabolic
@@ -16,17 +9,22 @@ There are several options for self-supervision:
 - Types of Domains:
     + 2D -- An intersection of 2D shapes (half-planes, disks)
     + 3D -- An intersection of 3D shapes (half-spaces, spheres, cylinders)
+- Boundary Conditions:
+    + Dirichlet
+    + Pressure difference
+- Method:
+    + Automatic differentiation
+    + Martingale condition
 
 ## Usage
 
 Setup your PDE, domain, boundary and initial conditions in the DRLPDE_param_problem.py file
 (Optional) Setup your deep learning parameters in the DRLPDE_param_solver.py file
 
-Run the DRLPDE_main file from the command line: python DRLPDE_main.py
+Run the DRLPDE.main file from the command line: python DRLPDE.main.py
+Or use the jupyter notebook 
 
 ## Pre-built examples:
-
-You can run any of the pre-built examples by calling its name in python: DRLPDE_main.py -example name_of_example
 
 #### JCPexample1
 Steady Stokes flow in a rotating disk
