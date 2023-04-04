@@ -14,14 +14,13 @@ def interior(Batch, numpts, model, make_target, var_train, dev, weight, max_loss
 
     # Indices to resample
     resample_index = torch.tensor([], dtype=torch.int64)
-    L2loss = torch.tensor(0.0)
-    Linfloss = torch.tensor(0.0)
+    L2loss = torch.tensor(0.0, device=dev)
+    Linfloss = torch.tensor(0.0, device=dev)
 
     # Do in batches
     for X, index in Batch:
-        X.to(dev).requires_grad_(True)
-
-        loss = make_target(X, model, **var_train)
+        #X.to(dev).requires_grad_(True)
+        loss = make_target(X.to(dev).requires_grad_(True), model, **var_train)
         
         if do_resample:
             resample_index = find_resample(X, index, loss, resample_index, max_loss)
@@ -45,13 +44,13 @@ def boundary(Batch, numpts, model, make_target, dev, weight, max_loss, do_resamp
 
     # Initialize indices for resampling
     resample_index = torch.tensor([], dtype=torch.int64)
-    L2loss = torch.tensor(0.0)
-    Linfloss = torch.tensor(0.0)
+    L2loss = torch.tensor(0.0, device=dev)
+    Linfloss = torch.tensor(0.0, device=dev)
 
     for Xb, Ubtrue, index in Batch:
-        Xb.to(dev).requires_grad_(True)
+        #Xb.to(dev).requires_grad_(True)
 
-        loss = make_target(Xb, model, Ubtrue)
+        loss = make_target(Xb.to(dev).requires_grad_(True), model, Ubtrue.to(dev).requires_grad_(True))
 
         if do_resample:
             resample_index = find_resample(Xb, index, loss, resample_index, max_loss)
@@ -96,21 +95,21 @@ def Inletoutlet_target(X, model, true):
 
     return target
 
-def L2error(Batch, numpts, model, true_fun):
+def L2error(Batch, numpts, model, true_fun, dev):
     # Batch: X, index
 
     # Output: Total L2 loss, Linfloss
 
     # Indices to resample
-    L2error = torch.tensor(0.0)
-    Linferror = torch.tensor(0.0)
+    L2error = torch.tensor(0.0, device=dev)
+    Linferror = torch.tensor(0.0, device=dev)
 
     # Do in batches
     for X, index in Batch:
-        X.requires_grad_(True)
+        #X.to(dev).requires_grad_(True)
 
-        Y = model(X)
-        Ytrue = true_fun(X)
+        Y = model(X.to(dev).requires_grad_(True))
+        Ytrue = true_fun(X.to(dev).requires_grad_(True))
         
         error = SquaredError(Y, Ytrue)
         

@@ -160,7 +160,7 @@ class box:
         self.measure = 2*( xint[1] - xint[0] ) + 2*( yint[1] - yint[0] ) 
         self.dim = 1
         
-    def rhs(self, num, model):
+    def rhs(self, num, model, dev):
         ### Make num points along each wall
 
         numpts = num-2
@@ -168,19 +168,19 @@ class box:
         dx = (self.xint[1] - self.xint[0])/(num -1)
         dy = (self.yint[1] - self.yint[0])/(num -1)
 
-        ratio = ((dy/dx)**2)
+        ratio = ((dy/dx)**2).to(dev)
 
-        Xlin = torch.linspace( self.xint[0], self.xint[1], num)[1:-1]
-        Ylin = torch.linspace( self.yint[0], self.yint[1], num)[1:-1]
+        Xlin = torch.linspace( self.xint[0], self.xint[1], num, device=dev)[1:-1]
+        Ylin = torch.linspace( self.yint[0], self.yint[1], num, device=dev)[1:-1]
 
-        Xleft = torch.stack( (self.xint[0].repeat(numpts), Ylin), dim=1 ).requires_grad_(True)
-        Xright = torch.stack( (self.xint[1].repeat(numpts), Ylin), dim=1 ).requires_grad_(True)
-        Xbot = torch.stack( (Xlin, self.yint[0].repeat(numpts)), dim=1 ).requires_grad_(True) 
-        Xtop = torch.stack( (Xlin, self.yint[0].repeat(numpts)), dim=1 ).requires_grad_(True) 
+        Xleft = torch.stack( (self.xint[0].repeat(numpts).to(dev), Ylin), dim=1 ).requires_grad_(True)
+        Xright = torch.stack( (self.xint[1].repeat(numpts).to(dev), Ylin), dim=1 ).requires_grad_(True)
+        Xbot = torch.stack( (Xlin, self.yint[0].repeat(numpts).to(dev)), dim=1 ).requires_grad_(True) 
+        Xtop = torch.stack( (Xlin, self.yint[0].repeat(numpts).to(dev)), dim=1 ).requires_grad_(True) 
 
         Xwall = torch.cat( (Xleft, Xbot, Xtop, Xright), dim=0)
 
-        b = torch.zeros((num-2)**2,1)
+        b = torch.zeros((num-2)**2,1, device=dev)
 
         b[:numpts] += -model(Xleft)*ratio
         b[np.arange(0,numpts**2, numpts)] += -model(Xbot)

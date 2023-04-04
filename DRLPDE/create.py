@@ -295,15 +295,15 @@ class MeshPoints(torch.utils.data.Dataset):
     # 
     # TODO: Be able to handle multiple meshgrids
 
-    def __init__(self, num, box, model):
+    def __init__(self, num, box, model, dev):
 
         #TODO Compute laplace operator once, save as SVD
 
         X = torch.cartesian_prod( torch.linspace(box.xint[0], box.xint[1], num)[1:-1], 
                                   torch.linspace(box.yint[0], box.yint[1], num)[1:-1] )
         
-        self.A = box.make_laplace(num)
-        b, Xwall = box.rhs(num, model)
+        self.A = box.make_laplace(num).to(dev)
+        b, Xwall = box.rhs(num, model, dev)
 
         U = self.solveU(b)
 
