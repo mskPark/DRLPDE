@@ -32,7 +32,7 @@ import DRLPDE.bdry3d as bdry3d
 
 class SpaceDomain:
 
-    def __init__(self, boundingbox, list_of_walls, solid_walls, inlet_outlet, list_of_periodic_ends, mesh, initial_con):
+    def __init__(self, boundingbox, list_of_walls, solid_walls, inlet_outlet, list_of_periodic_ends, mesh):
         
         self.boundingbox = boundingbox
 
@@ -128,7 +128,7 @@ class SpaceDomain:
         # Walker boundary. If walker crosses, flag and bring to boundary, evaluate BC
         self.boundary = self.wall + self.inletoutlet
 
-        # For generating points inside the domain
+        # For checking whether points are inside/outside the domain
         self.inside = self.wall + self.inletoutlet + self.mesh
 
         # Calculate volume of domain
@@ -136,7 +136,7 @@ class SpaceDomain:
         self.volume = self.volumeDomain(1e-3)
 
         # Domain knows the initial condition
-        self.initial_con = initial_con
+        # self.initial_con = initial_con
 
     ### Calculate volume of the domain
     def volumeDomain(self, std):
@@ -151,7 +151,7 @@ class SpaceDomain:
         for ii in range(len(self.boundingbox)):
             volB = volB*(self.boundingbox[ii][1] - self.boundingbox[ii][0])
 
-        # Calculate number needed to get std within tol
+        # Calculate number needed to get std within tol (approximate)
         num = np.int( (volB/std)**2 ) 
         X = torch.empty( (num, len(self.boundingbox)) )
 
@@ -163,7 +163,16 @@ class SpaceDomain:
         for wall in self.boundary + self.mesh:
             outside += wall.distance(X) < 0
         
-        volD = volB*( (num - torch.sum(outside))/num )
+        frac = (num - torch.sum(outside))/num
+        volD = volB*frac
+
+        #standard_error = torch.sqrt( volB**2 ( 1 - frac)*frac/num/(num-1) )
+
+        # 95% confident that the answer = VolD +- standard_error*1.96 
+        # TODO: If 2*1.96*standard_error > 0.01 (For 2 digit accuracy, 95% confidence)
+        #       Redo, and use the previous answer to double the number of points.
+        #       Repeat until we have desired accuracy.
+
 
         return volD
 
@@ -294,6 +303,7 @@ class MeshPoints(torch.utils.data.Dataset):
     # x_interval and y_interval has to be the same length
     # 
     # TODO: Be able to handle multiple meshgrids
+    # TODO: Refinement study
 
     def __init__(self, num, box, model, dev):
 
@@ -321,24 +331,6 @@ class MeshPoints(torch.utils.data.Dataset):
     
     def __getitem__(self, index):
         return self.location[index,:], self.value[index,:], index
-
-class ErrorPoints(torch.utils.data.Dataset):
-    ### For diagnostics when True solution is known
-    ### Calculate the L2 error through Monte Carlo Integration
-
-    def __init__(self, num, domain, input_dim, input_range):
-        
-        self.location = generate_interior_points(num, input_dim, input_range, domain, domain.boundary)
-        self.num_pts = num
-    
-    ### Required def for Dataset class
-    def __len__(self):
-        # How many data points are there?
-        return self.num_pts
-    
-    def __getitem__(self, index):
-        # Retrieves one sample of data
-        return self.location[index,:], index
 
 ### Number of points to guarantee Mean Minimum Distance
 def num_points_wall(N, l, V, d, d0):

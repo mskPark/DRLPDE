@@ -13,7 +13,7 @@ class IncompressibleNN(nn.Module):
     ### A Incompressible neural network
     ### curl operation built in
     
-    def __init__(self, depth, width, input_dim, **nn_param):
+    def __init__(self, input_dim, output_dim, depth, width, **nn_param):
         super(IncompressibleNN, self).__init__()
         
         self.x_dim = input_dim[0]
@@ -241,10 +241,10 @@ class FeedForwardNN(nn.Module):
     
     ### Feed forward neural network
     
-    def __init__(self, depth, width, x_dim, is_unsteady, output_dim, **nn_param):
+    def __init__(self, input_dim, output_dim, depth, width, **nn_param):
         super(FeedForwardNN, self).__init__()
         
-        self.input_dim = x_dim + is_unsteady
+        self.input_dim = sum(input_dim)
         
         modules = []
         modules.append(nn.Linear(self.input_dim, depth))

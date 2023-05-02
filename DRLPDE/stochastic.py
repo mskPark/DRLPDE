@@ -1,6 +1,7 @@
 import torch
 import DRLPDE.autodiff as ad
 import numpy as np
+import DRLPDE.create as create
 
 SquaredError = torch.nn.MSELoss(reduction='none')
 
@@ -28,7 +29,7 @@ def unsteadyViscousBurgers(X, model, diffusion, forcing, x_dim, domain, dt, num_
     Uold = model(X)
 
     # Diffusion coefficient
-    mu = diffusion(Xnew)
+    mu = diffusion(X).detach().repeat(num_ghost,1)
     
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -63,7 +64,7 @@ def steadyViscousBurgers(X, model, diffusion, forcing, x_dim, domain, dt, num_gh
     Uold = model(X)
     
     # Diffusion coefficient
-    mu = diffusion(Xnew).detach()
+    mu = diffusion(X).detach().repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -103,7 +104,7 @@ def unsteadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_gh
     gradPold = ad.gradient(UPold[:,-1], X[:,:x_dim])
 
     # Diffusion coefficient
-    mu = diffusion(Xnew).detach()
+    mu = diffusion(X).detach()
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -124,7 +125,7 @@ def unsteadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_gh
     # Calculate exits and re-evaluate bc, inletoutlet, ic
     Xnew, UPnew = exit_bc(X.repeat(num_ghost,1), Xnew, UPnew, domain.boundaries, x_dim, tol)
 
-    Xnew, UPnew = exit_ic(X.repeat(num_ghost,1), Xnew, UPnew, domain.initial_con, x_dim, tol)
+    Xnew, UPnew = exit_ic(X.repeat(num_ghost,1), Xnew, UPnew, initial_con, x_dim, tol)
 
     # Evaluate grad(p) at Xnew
     gradPnew = ad.gradient(UPnew[:,-1], Xnew[:,:x_dim])
@@ -148,7 +149,7 @@ def steadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_ghos
     # Evaluate grad(p) at X
     gradPold = ad.gradient(UPold[:,-1], X[:,:x_dim])
 
-    mu = diffusion(Xnew).detach()
+    mu = diffusion(X).detach()
 
     # Move Xnew
     # TODO: Implement higher order SDE simulation
@@ -188,7 +189,7 @@ def Laplace(X, model, diffusion, forcing, x_dim, domain, dt, num_ghost, tol, **v
     Uold = model(X)
     
     # Diffusion coefficient
-    mu = diffusion(Xnew).detach()
+    mu = diffusion(X).detach()
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -205,7 +206,43 @@ def Laplace(X, model, diffusion, forcing, x_dim, domain, dt, num_ghost, tol, **v
     Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.boundary, x_dim, tol)
 
     # Make target
-    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), 1).mean(0), Uold)
+    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0), Uold)
+
+    return Loss
+
+### Heat Equation
+def Heat(X, model, diffusion, forcing, x_dim, domain, initial_con, dt, num_ghost, tol, **var_train):
+    ### X: (x,y,z,hyper)
+    ### model: u
+
+    # Xnew = X repeated
+    Xnew = X.clone().detach().repeat(num_ghost,1)
+
+    # Evaluate at X
+    Uold = model(X)
+    
+    # Diffusion coefficient
+    mu = diffusion(X).detach()
+
+    # Move walkers
+    # TODO: Implement higher order SDE simulation
+    Xnew[:,:x_dim] = Xnew[:,:x_dim] + torch.sqrt(2*dt*mu)*torch.randn((Xnew.size(0), x_dim), device=X.device, requires_grad=True)
+    Xnew[:,x_dim] = Xnew[:,x_dim] - dt
+
+    # Periodic boundaries
+    if any(domain.periodic):
+        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+
+    # Evaluate at Xnew
+    Unew = model(Xnew)
+
+    # Calculate exits and re-evaluate
+    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.boundary, x_dim, tol)
+
+    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, domain.initial_con, x_dim, tol)
+
+    # Make target
+    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0), Uold)
 
     return Loss
 
@@ -262,6 +299,29 @@ def unsteadyParabolic(X, model, domain, mu, x_dim, dt, num_batch, num_ghost, tol
 
 
 ### Simulate Stochastic Process
+
+def walk(X, num, model, input_dim, input_range, diffusion, x_dim, domain, dt, **var_train):
+    
+    # Evaluate at X
+    Uold = model(X)
+
+    # Diffusion coefficient
+    mu = diffusion(X).detach()
+    
+    # Move walkers
+    # TODO: Implement higher order SDE simulation
+    Xnew = X[:,:x_dim] - dt*Uold + torch.sqrt(2*dt*mu)*torch.randn((num, x_dim), device=X.device, requires_grad=False)
+
+    # Periodic boundaries
+    if any(domain.periodic):
+        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+
+    for bdry in domain.inside:
+        outside_bdry = bdry.distance(Xnew[:,:x_dim]) < 0
+        if any(outside_bdry):
+            Xnew[outside_bdry,:x_dim] = create.generate_interior_points(torch.sum(outside_bdry), input_dim, input_range, domain, domain.inside)
+
+    return Xnew.detach()
 
 def move_steadySDE():
 

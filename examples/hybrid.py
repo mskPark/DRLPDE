@@ -13,11 +13,6 @@ import torch
 import math
 import numpy as np
 
-############## Save model and/or Load model ##############
-
-savemodel = ''
-loadmodel = ''
-
 ############## Problem Parameters ################
 
 # Physical Dimension
@@ -73,7 +68,7 @@ def reaction(X):
 ### Function can use hyperparameters that are incorporated in X
 
 def bdry_con(X):
-    ubdry = 4.0*( X[:,0] - 1.0 )**2 - 4.0*( X[:,1] + 0.5 )**2
+    ubdry = 5.1*( X[:,0] - 0.87 )**2 - 5.1*( X[:,1] + 0.34 )**2
     return ubdry[:,None]
 
 def init_con(X):

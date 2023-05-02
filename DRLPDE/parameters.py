@@ -1,15 +1,21 @@
 ###
-### Parameters of the PDE problem
+### Default Problem Parameters
 ###
 
 import torch
 import math
 import numpy as np
 
-############## Save model and/or Load model ##############
+############## Collect Errors ######################
 
-savemodel = 'Test'
-loadmodel = ''
+collect_error = True
+num_error = 2**15
+# TODO: Decide num_error automatically based on tolerance
+
+if collect_error:
+    def true_fun(X):
+        u = torch.zeros( (X.size(0), output_dim), device=X.device )
+        return u
 
 ############## Problem Parameters ################
 
@@ -23,7 +29,6 @@ if t_dim:
     t_range = [[0.0, 1.0]]
 else:
     t_range = [ [] ]
-
 
 # Hyperparameters
 hyper_dim = 2
@@ -66,33 +71,26 @@ def reaction(X):
 ### Use pytorch expressions to make boundary and initial conditions 
 ###
 ### Function can use hyperparameters that are incorporated in X
+
 def bdry_con(X):
-    return torch.zeros( (X.size(0), output_dim), device=X.device )
+    u = torch.zeros( (X.size(0), output_dim), device=X.device )
+    return u
 
 def init_con(X):
-    Uinit = torch.zeros( (X.size(0), output_dim), device=X.device )
-    return Uinit
+    u = torch.zeros( (X.size(0), output_dim), device=X.device )
+    return u
 
 def inlet_con(X):
     u = torch.zeros((X.size(0), output_dim), device=X.device)
-    #
-    # u[:,0] = 5.0*(L_height - X[:,1])*(L_height + X[:,1])/(L_height**2)
-
     u[:,0] = X[:,3]*(L_height - X[:,1])*(L_height + X[:,1])/(L_height**2)
-
     return u
 
 def inletoutlet_con(X):
     pass
 
-
 #################  Make the domain  #######################
-###
-### See doc/param_problem.md for usage details
-###
-### TODO Fix
 
-### WARNING: Use decimals to make sure torch defaults to floating point
+### WARNING: Use decimals to make sure pytorch defaults to floating point
 
 boundingbox = [ [0, 5*L_height], [-L_height,L_height] ]
 
@@ -100,7 +98,6 @@ disk1 = {   'type':'disk',
             'centre': [L_height,0],
             'radius': L_height/3,
             'boundary_condition':bdry_con }
-
 
 circle1 = {  'type':'circle',
              'centre': [L_height,0],
@@ -133,3 +130,4 @@ list_of_walls = [circle1, wall_left, wall_top,  wall_bot, wall_right]
 list_of_periodic_ends =[]
 solid_walls = [disk1]
 inlet_outlet = []
+mesh = []

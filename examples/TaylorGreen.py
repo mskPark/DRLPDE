@@ -11,46 +11,50 @@ import torch
 import math
 import numpy as np
 
-global mu
+mu = 1.0
 
-############## Global variables ###################
+############## Collect Errors ######################
 
-mu = 1
+collect_error = True
+num_error = 2**15
+# TODO: Decide num_error automatically based on tolerance
 
-############## Save model and/or Load model ##############
+if collect_error:
+    def true_fun(X):
+        u = torch.stack( ( torch.cos(X[:,0])*torch.sin(X[:,1])*torch.exp(-2*mu*X[:,2]),
+                          -torch.sin(X[:,0])*torch.cos(X[:,1])*torch.exp(-2*mu*X[:,2]) ), dim=1)
+        return u
 
-savemodel = 'TaylorGreen'
-loadmodel = ''
+############## Problem Parameters ################
+
 
 # Physical Dimension
 x_dim = 2
 output_dim = 2
 
-# Steady   or Unsteady
-# Elliptic or Parabolic
-is_unsteady = True
-input_dim = x_dim + is_unsteady
-time_range = [0,0.25]
+# Steady or Unsteady
+t_dim = 1
+if t_dim:
+    t_range = [[0.0, 0.25]]
+else:
+    t_range = [ [] ]
 
-################# Analytic Solution ######################
-
-exists_analytic_sol = True
-# If there is a true solution, provide contour levels
-plot_levels = np.linspace(-1,1,100)
-
-def true_solution(X):
-    u = torch.stack( ( torch.cos(X[:,0])*torch.sin(X[:,1])*torch.exp(-2*mu*X[:,2]),
-                       -torch.sin(X[:,0])*torch.cos(X[:,1])*torch.exp(-2*mu*X[:,2]) ), dim=1)
-    return u
-
+# Hyperparameters
+hyper_dim = 0
+if hyper_dim:
+    hyper_range = [[0.0, 1.0], [1.0, 5.0]]
+else:
+    hyper_range = [ [] ]
 
 ################# PDE Coefficients ########################
 
-# PDE type:
-pde_type = 'NavierStokes'
+pde_type = 'viscousBurgers'
 
 # Diffusion coefficient
-# mu = 1
+def diffusion(X):
+    mu = torch.tensor( 1.0 )
+    #mu = X[:,4,None]
+    return mu
 
 # Forcing term
 def forcing(X):
@@ -84,5 +88,8 @@ periodic2 = { 'variable':'y',
               'base':-math.pi,
               'top':math.pi }
 
-list_of_dirichlet_boundaries = []
-list_of_periodic_boundaries =[periodic1, periodic2]
+list_of_walls = []
+list_of_periodic_ends =[periodic1, periodic2]
+solid_walls = []
+inlet_outlet = []
+mesh = []

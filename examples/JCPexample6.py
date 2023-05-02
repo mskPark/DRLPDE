@@ -8,42 +8,38 @@ import torch
 import math
 import numpy as np
 
-global L_height, v0
-
-############## Save model and/or Load model ##############
-
-savemodel = 'JCPexample6_PINNs'
-loadmodel = ''
-
 # Physical Dimension
 x_dim = 2
 output_dim = 2
 
-# Steady   or Unsteady
-# Elliptic or Parabolic
-is_unsteady = False
-input_dim = x_dim + is_unsteady
+# Steady or Unsteady
+t_dim = 0
+if t_dim:
+    t_range = [[0.0, 1.0]]
+else:
+    t_range = [ [] ]
+
+# Hyperparameters
+hyper_dim = 0
+if hyper_dim:
+    hyper_range = [[0.0, 1.0], [1.0, 5.0]]
+else:
+    hyper_range = [ [] ]
+
 
 L_height = 0.5
-v0 = 10 #1.513787
-
-# Is there a true solution
-exists_analytic_sol = False
-# If there is a true solution, provide contour levels
-plot_levels = np.linspace(-1,1,100)
-
-
-def true_solution(X):
-    pass
+v0 = 1.513787
 
 
 ################# PDE Coefficients ########################
 
 # PDE type:
-pde_type = 'NavierStokes'
+pde_type = 'viscousBurgers'
 
 # Diffusion coefficient
-mu = 1
+def diffusion(X):
+    mu = torch.tensor(1.0 )
+    return mu
 
 # Forcing term
 def forcing(X):
@@ -85,11 +81,16 @@ def inlet_con(X):
 
 boundingbox = [ [0, 5*L_height], [-L_height,L_height] ]
 
-bdry1 = {   'type':'disk',
+disk1 = {   'type':'disk',
             'centre': [L_height,0],
             'radius': L_height/3,
             'endpoints': [],
             'boundary_condition':bdry_con }
+
+circle1 = {  'type':'circle',
+             'centre': [L_height,0],
+             'radius': L_height/3,
+             'boundary_condition':bdry_con}
 
 wall_left = {'type':'line',
              'point': [0, -L_height],
@@ -115,5 +116,9 @@ wall_right = {'type':'line',
              'endpoints': [ [5*L_height, -L_height], [5*L_height, L_height] ],
              'boundary_condition': inlet_con }
 
-list_of_dirichlet_boundaries = [bdry1, wall_left, wall_top, wall_bot, wall_right ]
-list_of_periodic_boundaries =[]
+
+list_of_walls = [circle1, wall_left, wall_top,  wall_bot, wall_right]
+list_of_periodic_ends =[]
+solid_walls = [disk1]
+inlet_outlet = []
+mesh = []

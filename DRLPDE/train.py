@@ -6,7 +6,7 @@ SquaredError = torch.nn.MSELoss(reduction='none')
 
 # TODO datatype int64 may be overkill for resample index
 
-def interior(Batch, numpts, model, make_target, var_train, dev, weight, max_loss, do_resample=False):
+def interior(Batch, numpts, model, make_target, var_train, dev, weight, max_loss, importance_sampling):
     # For interior points
     # Batch: X, index
 
@@ -21,8 +21,7 @@ def interior(Batch, numpts, model, make_target, var_train, dev, weight, max_loss
     for X, index in Batch:
         #X.to(dev).requires_grad_(True)
         loss = make_target(X.to(dev).requires_grad_(True), model, **var_train)
-        
-        if do_resample:
+        if importance_sampling:
             resample_index = find_resample(X, index, loss, resample_index, max_loss)
 
         L2loss += torch.sum(loss)
@@ -51,7 +50,6 @@ def boundary(Batch, numpts, model, make_target, dev, weight, max_loss, do_resamp
         #Xb.to(dev).requires_grad_(True)
 
         loss = make_target(Xb.to(dev).requires_grad_(True), model, Ubtrue.to(dev).requires_grad_(True))
-
         if do_resample:
             resample_index = find_resample(Xb, index, loss, resample_index, max_loss)
 
@@ -71,13 +69,15 @@ def find_resample(X, index, loss, resample_index, max_loss):
     # Compare sample < uniform
     # Then resample
     check_sample = max_loss*torch.rand(X.size(0), device=X.device)
-    resample_index = torch.cat( (resample_index, index[loss < check_sample]))
+
+    resample_index = torch.cat( (resample_index, index[loss[:,0] < check_sample]))
 
     return resample_index
 
 def reweight(loss_main, loss_aux):
     ### Gives a new weight to the boundary or initial condition losses
     ### Ensures that all losses are within the same order of magnitude
+    ###    TODO: Maybe fine tuning, loss of main is 10**2 * loss of others
 
     weight = 10**(torch.round( torch.log10(loss_main/loss_aux) ))
 
@@ -88,34 +88,16 @@ def Dirichlet_target(X, model, true):
 
     return target
 
+def Direct_target(X, model, true_fun):
+    target = SquaredError(model(X), true_fun(X).detach())
+
+    return target
+
 def Inletoutlet_target(X, model, true):
+    # (u,v,w, p)
+    # Target = p - true_pressure
     UP = model(X)
 
     target = SquaredError(UP[:,-1], true.detach())
 
     return target
-
-def L2error(Batch, numpts, model, true_fun, dev):
-    # Batch: X, index
-
-    # Output: Total L2 loss, Linfloss
-
-    # Indices to resample
-    L2error = torch.tensor(0.0, device=dev)
-    Linferror = torch.tensor(0.0, device=dev)
-
-    # Do in batches
-    for X, index in Batch:
-        #X.to(dev).requires_grad_(True)
-
-        Y = model(X.to(dev).requires_grad_(True))
-        Ytrue = true_fun(X.to(dev).requires_grad_(True))
-        
-        error = SquaredError(Y, Ytrue)
-        
-        L2error += torch.sum(error)
-        Linferror = torch.max( Linferror, torch.sqrt( torch.max(error).data ))
-
-    L2error = L2error.detach()/numpts
-
-    return L2error, Linferror

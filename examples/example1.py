@@ -1,41 +1,56 @@
 ###
-### Example 1: Laplace equation on annulus with harmonic function as boundary condition
-###            u(x,y) = log(x^2 + y^2)
-###            In a bounded domain not including the origin
+### Example 1: Harmonic function
+###                 u(x,y) = 5.1*( x - 0.87 )^2 - 5.1*( y + 0.34 )^2
+###            on a polar region 
+###                 r = 0.72*cos^5(theta) + 1.3
 ###
 
 import torch
 import math
 import numpy as np
 
-############## Save model and/or Load model ##############
+############## Collect Errors ######################
 
-savemodel = 'example1'
-loadmodel = ''
+collect_error = True
+num_error = 2**15
+# TODO: Decide num_error automatically based on tolerance
+
+if collect_error:
+    def true_fun(X):
+        ubdry = 5.1*( X[:,0] - 0.87 )**2 - 5.1*( X[:,1] + 0.34 )**2
+        return ubdry[:,None]
+
+############## Save model and/or Load model ##############
 
 # Physical Dimension
 x_dim = 2
 output_dim = 1
 
-# Steady   or Unsteady
-is_unsteady = False
-input_dim = x_dim + is_unsteady
+# Steady or Unsteady
+t_dim = 0
+if t_dim:
+    t_range = [[0.0, 1.0]]
+else:
+    t_range = [ [] ]
 
-# True solution
-exists_analytic_sol = True
-def true_solution(X):
-    u = torch.log( (X[:,0]+1)**2 + X[:,1]**2 )
-    return u
-
+# Hyperparameters
+hyper_dim = 0
+if hyper_dim:
+    hyper_range = [[0.0, 1.0], [1.0, 5.0]]
+else:
+    hyper_range = [ [] ]
 
 ################# PDE Coefficients ########################
 
 # PDE type:
 #     NavierStokes, Elliptic, Parabolic
-pde_type = 'Elliptic'
+pde_type = 'Laplace'
 
 # Diffusion coefficient
-mu = 1
+def diffusion(X):
+    mu = torch.tensor( 0.1 )
+    #mu = X[:,4,None]
+    return mu
 
 # Forcing term
 def forcing(X):
@@ -56,51 +71,28 @@ def reaction(X):
 # Use pytorch expressions to make boundary and initial conditions 
 
 def bdry_con(X):
+    ubdry = 5.1*( X[:,0] - 0.87 )**2 - 5.1*( X[:,1] + 0.34 )**2
+    return ubdry[:,None]
 
-    u = torch.log( ( X[:,0] + 1)**2 + X[:,1]**2 )
-
-    return u
 
 #################  Make the domain  #######################
 
-boundingbox = [ [-3,3], [-2,2] ]
+boundingbox = [ [-0.5, 2.0], [-1.5, 1.5] ]
 
-bdry1 = {   'type':'disk',
-            'centre': [-1,0],
-            'radius': 0.75,
-            'endpoints': [],
-            'boundary_condition':bdry_con }
+def polar_eq(theta):
+    r = 0.72*( torch.cos(theta)**5) + 1.3
+    return r
 
-bdry2 = {   'type':'line',
-            'point': [-3,1],
-            'normal': [-1,3],
-            'endpoints': [ [-3,1], [0,2] ],
-            'boundary_condition':bdry_con }
+polar = {'type':'polar',
+         'equation': polar_eq,
+         'boundary_condition': bdry_con}
 
-wall_left = {'type':'line',
-             'point': [-3,-2],
-             'normal': [-1,0],
-             'endpoints': [ [-3,-2], [-3,1] ],
-             'boundary_condition': bdry_con }
+box = { 'type': 'box',
+        'xinterval': [ 0.0, 1.0],
+        'yinterval': [-1.0, 1.0]}
 
-wall_top = { 'type':'line',
-             'point': [-3,2],
-             'normal': [0,1],
-             'endpoints': [ [0,2],   [3,2]  ],
-             'boundary_condition': bdry_con }
-
-wall_right= {'type':'line',
-             'point': [3, -2],
-             'normal':  [1,0],
-             'endpoints':  [ [3,0],   [3,2]  ],
-             'boundary_condition': bdry_con }
-
-wall_bot = {'type':'line',
-             'point': [-3,-2],
-             'normal': [1,-3],
-             'endpoints': [ [-3,-2], [3,0]  ],
-             'boundary_condition': bdry_con }
-
-list_of_dirichlet_boundaries = [bdry1, bdry2, wall_left, wall_top, wall_right, wall_bot ]
-list_of_periodic_boundaries =[]
-
+list_of_walls = [polar]
+list_of_periodic_ends =[]
+solid_walls = []
+inlet_outlet = []
+mesh = []

@@ -1,8 +1,7 @@
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 __pycache__
-images/*
+plotting/*
 oldstuff
-plots/*
 TODO.md
 

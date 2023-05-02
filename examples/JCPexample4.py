@@ -8,41 +8,44 @@ import torch
 import math
 import numpy as np
 
-global pressure_constant, mu, cylinder_radius
-
 ############## Global variables ###################
 
 # Pressure Gradient -> Negative to induce downward movement
-pressure_constant = -5
+pressure_constant = -5.0
 
 cylinder_radius = 1.0
 
-############## Save model and/or Load model ##############
+############## Collect Errors ######################
 
-savemodel = 'JCPexample4'
-loadmodel = ''
+collect_error = True
+num_error = 2**15
+# TODO: Decide num_error automatically based on tolerance
+
+if collect_error:
+    def true_fun(X):
+        u = torch.stack( ( torch.zeros(X.size(0), device=X.device),
+                           torch.zeros(X.size(0), device=X.device),
+                           pressure_constant/4/mu*(X[:,0]**2 + X[:,1]**2 - cylinder_radius) ), dim=1)
+        return u
+
 
 # Physical Dimension
 x_dim = 3
 output_dim = 3
 
-# Steady   or Unsteady
-# Elliptic or Parabolic
-is_unsteady = False
-input_dim = x_dim + is_unsteady
+# Steady or Unsteady
+t_dim = 0
+if t_dim:
+    t_range = [[0.0, 1.0]]
+else:
+    t_range = [ [] ]
 
-################# Analytic Solution ######################
-
-exists_analytic_sol = True
-# If there is a true solution, provide contour levels
-plot_levels = np.linspace(-1,1,100)
-
-def true_solution(X):
-    u = torch.stack( ( torch.zeros(X.size(0), device=X.device),
-                       torch.zeros(X.size(0), device=X.device),
-                       pressure_constant/4/mu*(X[:,0]**2 + X[:,1]**2 - cylinder_radius) ), dim=1)
-    return u
-
+# Hyperparameters
+hyper_dim = 0
+if hyper_dim:
+    hyper_range = [[0.0, 1.0], [1.0, 5.0]]
+else:
+    hyper_range = [ [] ]
 
 ################# PDE Coefficients ########################
 
@@ -50,7 +53,10 @@ def true_solution(X):
 pde_type = 'NavierStokes'
 
 # Diffusion coefficient
-mu = 1
+def diffusion(X):
+    mu = torch.tensor(1.0 )
+    #mu = X[:,4,None]
+    return mu
 
 # Forcing term
 def forcing(X):
@@ -71,17 +77,20 @@ def bdry_con(X):
 
 #################  Make the domain  #######################
 
-boundingbox = [ [-1,1], [-1,1], [0,1] ]
+boundingbox = [ [-1.0, 1.0], [-1.0, 1.0], [0.0, 1.0] ]
 
 periodic1 = { 'variable':'z', 
-              'base':0,
-              'top':1 }
+              'base':0.0,
+              'top':1.0 }
 
 
 cylinder1 = {'type':'cylinder',
-            'centre': [0,0,0],
+            'centre': [0.0 ,0.0 ,0.0],
             'radius': 1.0,
             'boundary_condition':bdry_con }
             
-list_of_dirichlet_boundaries = [cylinder1]
-list_of_periodic_boundaries =[periodic1]
+list_of_walls = [cylinder1]
+list_of_periodic_ends =[periodic1]
+solid_walls = []
+inlet_outlet = []
+mesh = []
