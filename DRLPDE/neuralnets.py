@@ -22,11 +22,11 @@ class IncompressibleNN(nn.Module):
         self.dim_out = [1,3][self.x_dim==3]
         
         modules = []
-        modules.append(nn.Linear(self.input_dim, depth))
-        for i in range(width - 1):
-            modules.append(nn.Linear(depth, depth))
+        modules.append(nn.Linear(self.input_dim, width))
+        for i in range(depth - 1):
+            modules.append(nn.Linear(width, width))
             modules.append(nn.Tanh())
-        modules.append(nn.Linear(depth, self.dim_out))
+        modules.append(nn.Linear(width, self.dim_out))
                        
         self.sequential_model = nn.Sequential(*modules)
     
@@ -62,7 +62,7 @@ class VelVecPot2D(nn.Module):
     ### Space dimension = 2
     ### curl operation built in
     
-    def __init__(self, depth, width, is_unsteady, **nn_param):
+    def __init__(self, input_dim, output_dim, depth, width, **nn_param):
         super(VelVecPot2D, self).__init__()
         
         self.x_dim = 2
@@ -71,11 +71,11 @@ class VelVecPot2D(nn.Module):
         self.dim_out = 1
         
         modules = []
-        modules.append(nn.Linear(self.input_dim, depth))
-        for i in range(width - 1):
-            modules.append(nn.Linear(depth, depth))
+        modules.append(nn.Linear(self.input_dim, width))
+        for i in range(depth - 1):
+            modules.append(nn.Linear(width, width))
             modules.append(nn.Tanh())
-        modules.append(nn.Linear(depth, self.dim_out))
+        modules.append(nn.Linear(width, self.dim_out))
                        
         self.sequential_model = nn.Sequential(*modules)
     
@@ -247,11 +247,11 @@ class FeedForwardNN(nn.Module):
         self.input_dim = sum(input_dim)
         
         modules = []
-        modules.append(nn.Linear(self.input_dim, depth))
-        for i in range(width - 1):
-            modules.append(nn.Linear(depth, depth))
+        modules.append(nn.Linear(self.input_dim, width))
+        for i in range(depth - 1):
+            modules.append(nn.Linear(width, width))
             modules.append(nn.Tanh())
-        modules.append(nn.Linear(depth, output_dim))
+        modules.append(nn.Linear(width, output_dim))
         
         self.sequential_model = nn.Sequential(*modules)
         

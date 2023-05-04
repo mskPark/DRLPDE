@@ -20,25 +20,25 @@ def define_solver_parameters(problem, **solver):
                          'savemodel': now.strftime('%b%d_%I%M%p'),
                          'loadmodel': '',
                          'numpts': 2**12,
-                         'numbatch': 2**10,
-                         'trainingsteps': 1000,
+                         'numbatch': 2**12,
+                         'trainingsteps': 5e3,
                          'neuralnetwork':'FeedForward',
-                         'nn_size': {'depth':60,
-                                       'width':4},
+                         'nn_size': {'depth':4,
+                                       'width':64},
                          'method': {'type':'stochastic',
                                       'dt':1e-4,
                                       'num_ghost':128,
                                       'tol': 1e-6},
-                         'optimizer': {'learningrate': 1e-2,
+                         'optimizer': {'learningrate': 1e-4,
                                          'beta': (0.9, 0.999),
-                                         'weightdecay': 0},
+                                         'weightdecay': 0.0},
                          'weights':{'interior':1e0,
                                       'wall':1e0,
                                       'solid':1e0,
                                       'inletoutlet':1e0,
                                       'mesh':1e0,
                                       'ic':1e0},
-                         'resample_every': 10,
+                         'resample_every': 1.1,
                          'walk': False,              
                          'importance_sampling': False,
                          'adaptive_weighting': 1.1, # Reweight Every
@@ -58,9 +58,9 @@ def solvePDE(parameters='', **solver):
     ### Pytorch default datatype is float32, to change, uncomment the line below
     # torch.set_default_dtype(torch.float64)
     
-    # Use cuda
+    # Use GPU if available
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    
     ### Parameters of the Problem
 
     if parameters:
@@ -95,7 +95,7 @@ def solvePDE(parameters='', **solver):
     solver_parameters = define_solver_parameters(problem, **solver)
 
     # Training parameters
-    trainingsteps = solver_parameters['trainingsteps']
+    trainingsteps = int(solver_parameters['trainingsteps'])
     
     num = solver_parameters['numpts']
     numbatch = solver_parameters['numbatch']
@@ -106,7 +106,7 @@ def solvePDE(parameters='', **solver):
 
     reweight_every = solver_parameters['adaptive_weighting']
 
-    print_every = round(trainingsteps/10)
+    print_every = 1.1 #round(trainingsteps/10)
 
     ###
     ### Initialize the Neural Network
@@ -132,7 +132,9 @@ def solvePDE(parameters='', **solver):
                                  betas=solver_parameters['optimizer']['beta'], 
                                  weight_decay=solver_parameters['optimizer']['weightdecay'])
 
-    # torch.optim.LBFGS(params, lr=1, max_iter=20, max_eval=None, tolerance_grad=1e-07, tolerance_change=1e-09, history_size=100, line_search_fn=None)
+    # Try LBFGS
+    #   Need to figure out closure
+    #optimizer = torch.optim.LBFGS(model.parameters(), lr=1, max_iter=20, max_eval=None, tolerance_grad=1e-07, tolerance_change=1e-09, history_size=100, line_search_fn=None)
 
     ###
     ### Create domain and points
@@ -310,6 +312,7 @@ def solvePDE(parameters='', **solver):
         Total_Linfloss_ic = Linfloss_ic.cpu().numpy()*np.ones(trainingsteps)
 
     if collect_error:
+        ErrorPoints.location = create.generate_interior_points(num_error, input_dim, input_range, Domain, Domain.inside)
         L2error, Linferror = diagnostics.CalculateError(ErrorPoints_batch, num_error, Domain.volume, model, true_fun, dev)
 
         Total_L2error = L2error.cpu().numpy()*np.ones(trainingsteps)
@@ -379,6 +382,7 @@ def solvePDE(parameters='', **solver):
             Total_Linfloss_ic[step+1] = Linfloss_ic.cpu().numpy()
 
         if collect_error:
+            ErrorPoints.location = create.generate_interior_points(num_error, input_dim, input_range, Domain, Domain.inside)
             L2error, Linferror = diagnostics.CalculateError(ErrorPoints_batch, num_error, Domain.volume, model, true_fun,dev)
 
             Total_L2error[step+1] = L2error.cpu().numpy()
@@ -389,7 +393,6 @@ def solvePDE(parameters='', **solver):
         # Resample points
 
         if do_resample:
-            # All points are being resampled
             indices = torch.arange(num)
             if any(resample_interior):
                 # Only points found in importance sampling routine are being resampled

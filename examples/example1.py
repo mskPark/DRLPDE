@@ -2,7 +2,7 @@
 ### Example 1: Harmonic function
 ###                 u(x,y) = 5.1*( x - 0.87 )^2 - 5.1*( y + 0.34 )^2
 ###            on a polar region 
-###                 r = 0.72*cos^5(theta) + 1.3
+###                 r = 0.72*cos^5(theta) + 1.2
 ###
 
 import torch
@@ -77,10 +77,10 @@ def bdry_con(X):
 
 #################  Make the domain  #######################
 
-boundingbox = [ [-0.5, 2.0], [-1.5, 1.5] ]
+boundingbox = [ [-1.0, 2.0], [-1.5, 1.5] ]
 
 def polar_eq(theta):
-    r = 0.72*( torch.cos(theta)**5) + 1.3
+    r = 0.72*( torch.cos(theta)**5) + 1.2
     return r
 
 polar = {'type':'polar',
