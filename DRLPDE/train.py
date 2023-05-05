@@ -4,6 +4,22 @@ import torch
 
 SquaredError = torch.nn.MSELoss(reduction='none')
 
+#Closure: We don't require gradient everytime
+    #            Wrap optimization routine into 
+    #            def closure():
+
+def closure():
+    if torch.is_grad_enabled():
+        optimizer.zero_grad()
+    output = model(input)
+    loss = loss_fn(output, target)
+    if loss.requires_grad:
+        loss.backward()
+    return loss
+
+# And then perform the optimizer step by
+# optimizer.step(closure)
+
 # TODO datatype int64 may be overkill for resample index
 
 def interior(Batch, numpts, model, make_target, var_train, dev, domainvolume, weight, max_loss, importance_sampling):
