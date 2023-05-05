@@ -41,7 +41,8 @@ def define_solver_parameters(problem, **solver):
                          'resample_every': 1.1,
                          'walk': False,              
                          'importance_sampling': False,
-                         'adaptive_weighting': 1.1, # Reweight Every
+                         'adaptive_weighting': { 'reweight_every':1.1,
+                                                 'stepsize':1e1},
                          'hybrid': {'num_mesh': 20,
                                     'solvemeshevery': 50}
                            }
@@ -104,7 +105,8 @@ def solvePDE(parameters='', **solver):
     walk = solver_parameters['walk']
     importance_sampling = solver_parameters['importance_sampling']
 
-    reweight_every = solver_parameters['adaptive_weighting']
+    reweight_every = solver_parameters['adaptive_weighting']['reweight_every']
+    stepsize = solver_parameters['adaptive_weighting']['stepsize']
 
     print_every = 1.1 #round(trainingsteps/10)
 
@@ -275,7 +277,7 @@ def solvePDE(parameters='', **solver):
 
     # Interior
 
-    L2loss_interior, Linfloss_interior, resample_interior = train.interior(IntPoints_batch, num, model, make_target, var_train, dev, weight_interior, 0.0, False)
+    L2loss_interior, Linfloss_interior, resample_interior = train.interior(IntPoints_batch, num, model, make_target, var_train, dev, Domain.volume, weight_interior, 0.0, False)
     
     Total_L2loss_interior = L2loss_interior.cpu().numpy()*np.ones(trainingsteps)
     Total_Linfloss_interior = Linfloss_interior.cpu().numpy()*np.ones(trainingsteps)
@@ -336,7 +338,8 @@ def solvePDE(parameters='', **solver):
         optimizer.zero_grad()
 
         # Interior
-
+        if do_reweight:
+            weight_interior = train.reweight(Linfloss_interior, stepsize)
         L2loss_interior, Linfloss_interior, resample_interior = train.interior(IntPoints_batch, num, model, make_target, var_train, dev, weight_interior, Linfloss_interior, importance_sampling)
 
         Total_L2loss_interior[step+1] = L2loss_interior.cpu().numpy()
@@ -345,7 +348,7 @@ def solvePDE(parameters='', **solver):
         # Walls
         if there_are_walls:
             if do_reweight:
-                weight_wall = train.reweight(L2loss_interior, L2loss_wall)
+                weight_wall = train.reweight(Linfloss_wall, stepsize)
             L2loss_wall, Linfloss_wall, resample_wall = train.boundary(BCPoints_batch, num_wall, model, train.Dirichlet_target, dev, weight_wall, Linfloss_wall, importance_sampling)
             
             Total_L2loss_wall[step+1] = L2loss_wall.cpu().numpy()
@@ -353,7 +356,7 @@ def solvePDE(parameters='', **solver):
 
         if there_are_solids:
             if do_reweight:
-                weight_solid = train.reweight(L2loss_interior, L2loss_solid)
+                weight_solid = train.reweight(Linfloss_solid, stepsize)
             L2loss_solid, Linfloss_solid, resample_solid = train.boundary(SolidPoints_batch, num_solid, model, train.Dirichlet_target, dev, weight_solid, Linfloss_solid, importance_sampling)
 
             Total_L2loss_solid[step+1] = L2loss_solid.cpu().numpy()
@@ -361,13 +364,15 @@ def solvePDE(parameters='', **solver):
 
         if there_are_inletoutlets:
             if do_reweight:
-                weight_inletoutlet = train.reweight(L2loss_interior, L2loss_inletoutlet)
+                weight_inletoutlet = train.reweight(Linfloss_inletoutlet, stepsize)
             L2loss_inletoutlet, Linfloss_inletoutlet, resample_inletoutlet = train.boundary(InletOutletPoints_batch, num_inout, model, train.Inletoutlet_target, dev, weight_inletoutlet, Linfloss_inletoutlet, importance_sampling)
             
             Total_L2loss_inletoutlet[step+1] = L2loss_inletoutlet.cpu().numpy()
             Total_Linfloss_inletoutlet[step+1] = Linfloss_inletoutlet.cpu().numpy()
 
         if there_are_meshes:
+            if do_reweight:
+                weight_mesh = train.reweight(Linfloss_mesh, stepsize)
             L2loss_mesh, Linfloss_mesh, [] = train.boundary(MeshPoints_batch, num_mesh, model, train.Dirichlet_target, dev, weight_mesh, Linfloss_mesh, False)
 
             Total_L2loss_mesh[step+1] = L2loss_mesh.cpu().numpy()
@@ -375,7 +380,7 @@ def solvePDE(parameters='', **solver):
 
         if unsteady:
             if do_reweight:
-                weight_ic = train.reweight(L2loss_interior, L2loss_ic)
+                weight_ic = train.reweight(Linfloss_ic, stepsize)
             L2loss_ic, Linfloss_ic, resample_ic = train.boundary(ICPoints_batch, num_ic, model, train.Dirichlet_target, dev, weight_ic, Linfloss_ic, importance_sampling)
 
             Total_L2loss_ic[step+1] = L2loss_ic.cpu().numpy()

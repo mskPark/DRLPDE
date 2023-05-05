@@ -6,7 +6,7 @@ SquaredError = torch.nn.MSELoss(reduction='none')
 
 # TODO datatype int64 may be overkill for resample index
 
-def interior(Batch, numpts, model, make_target, var_train, dev, weight, max_loss, importance_sampling):
+def interior(Batch, numpts, model, make_target, var_train, dev, domainvolume, weight, max_loss, importance_sampling):
     # For interior points
     # Batch: X, index
 
@@ -27,7 +27,8 @@ def interior(Batch, numpts, model, make_target, var_train, dev, weight, max_loss
         L2loss += torch.sum(loss)
         Linfloss = torch.max( Linfloss, torch.sqrt( torch.max(loss).data ))
 
-        loss = weight*torch.mean(loss)
+        # Multiply by volume
+        loss = domainvolume*torch.mean(loss)
         loss.backward()
 
     L2loss = L2loss.detach()/numpts
@@ -74,12 +75,11 @@ def find_resample(X, index, loss, resample_index, max_loss):
 
     return resample_index
 
-def reweight(loss_main, loss_aux):
+def reweight(loss_max, stepsize):
     ### Gives a new weight to the boundary or initial condition losses
     ### Ensures that all losses are within the same order of magnitude
     ###    TODO: Maybe fine tuning, loss of main is 10**2 * loss of others
-
-    weight = 10**(torch.round( torch.log10(loss_main/loss_aux) ))
+    weight =  stepsize / loss_max
 
     return weight
 
