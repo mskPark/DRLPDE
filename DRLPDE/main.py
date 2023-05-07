@@ -108,7 +108,7 @@ def solvePDE(parameters='', **solver):
     reweight_every = solver_parameters['adaptive_weighting']['reweight_every']
     stepsize = solver_parameters['adaptive_weighting']['stepsize']
 
-    print_every = 1.1 #round(trainingsteps/10)
+    print_every = round(trainingsteps/10)
 
     ###
     ### Initialize the Neural Network
@@ -330,20 +330,21 @@ def solvePDE(parameters='', **solver):
 
     start_time = time.time()
 
-    for step in range(trainingsteps-1):
+    for step in range(1,trainingsteps):
         
-        do_resample = (step+1) % resample_every == 0
-        do_reweight = (step+1) % reweight_every == 0
+        do_resample = step % resample_every == 0
+        do_reweight = step % reweight_every == 0
 
         optimizer.zero_grad()
 
         # Interior
         if do_reweight:
             weight_interior = train.reweight(Linfloss_interior, stepsize)
-        L2loss_interior, Linfloss_interior, resample_interior = train.interior(IntPoints_batch, num, model, make_target, var_train, dev, weight_interior, Linfloss_interior, importance_sampling)
+            print(weight_interior)
+        L2loss_interior, Linfloss_interior, resample_interior = train.interior(IntPoints_batch, num, model, make_target, var_train, dev, Domain.volume, weight_interior, Linfloss_interior, importance_sampling)
 
-        Total_L2loss_interior[step+1] = L2loss_interior.cpu().numpy()
-        Total_Linfloss_interior[step+1] = Linfloss_interior.cpu().numpy()
+        Total_L2loss_interior[step] = L2loss_interior.cpu().numpy()
+        Total_Linfloss_interior[step] = Linfloss_interior.cpu().numpy()
 
         # Walls
         if there_are_walls:
@@ -351,47 +352,47 @@ def solvePDE(parameters='', **solver):
                 weight_wall = train.reweight(Linfloss_wall, stepsize)
             L2loss_wall, Linfloss_wall, resample_wall = train.boundary(BCPoints_batch, num_wall, model, train.Dirichlet_target, dev, weight_wall, Linfloss_wall, importance_sampling)
             
-            Total_L2loss_wall[step+1] = L2loss_wall.cpu().numpy()
-            Total_Linfloss_wall[step+1] = Linfloss_wall.cpu().numpy()
+            Total_L2loss_wall[step] = L2loss_wall.cpu().numpy()
+            Total_Linfloss_wall[step] = Linfloss_wall.cpu().numpy()
 
         if there_are_solids:
             if do_reweight:
                 weight_solid = train.reweight(Linfloss_solid, stepsize)
             L2loss_solid, Linfloss_solid, resample_solid = train.boundary(SolidPoints_batch, num_solid, model, train.Dirichlet_target, dev, weight_solid, Linfloss_solid, importance_sampling)
 
-            Total_L2loss_solid[step+1] = L2loss_solid.cpu().numpy()
-            Total_Linfloss_solid[step+1] = Linfloss_solid.cpu().numpy()
+            Total_L2loss_solid[step] = L2loss_solid.cpu().numpy()
+            Total_Linfloss_solid[step] = Linfloss_solid.cpu().numpy()
 
         if there_are_inletoutlets:
             if do_reweight:
                 weight_inletoutlet = train.reweight(Linfloss_inletoutlet, stepsize)
             L2loss_inletoutlet, Linfloss_inletoutlet, resample_inletoutlet = train.boundary(InletOutletPoints_batch, num_inout, model, train.Inletoutlet_target, dev, weight_inletoutlet, Linfloss_inletoutlet, importance_sampling)
             
-            Total_L2loss_inletoutlet[step+1] = L2loss_inletoutlet.cpu().numpy()
-            Total_Linfloss_inletoutlet[step+1] = Linfloss_inletoutlet.cpu().numpy()
+            Total_L2loss_inletoutlet[step] = L2loss_inletoutlet.cpu().numpy()
+            Total_Linfloss_inletoutlet[step] = Linfloss_inletoutlet.cpu().numpy()
 
         if there_are_meshes:
             if do_reweight:
                 weight_mesh = train.reweight(Linfloss_mesh, stepsize)
             L2loss_mesh, Linfloss_mesh, [] = train.boundary(MeshPoints_batch, num_mesh, model, train.Dirichlet_target, dev, weight_mesh, Linfloss_mesh, False)
 
-            Total_L2loss_mesh[step+1] = L2loss_mesh.cpu().numpy()
-            Total_Linfloss_mesh[step+1] = Linfloss_mesh.cpu().numpy()
+            Total_L2loss_mesh[step] = L2loss_mesh.cpu().numpy()
+            Total_Linfloss_mesh[step] = Linfloss_mesh.cpu().numpy()
 
         if unsteady:
             if do_reweight:
                 weight_ic = train.reweight(Linfloss_ic, stepsize)
             L2loss_ic, Linfloss_ic, resample_ic = train.boundary(ICPoints_batch, num_ic, model, train.Dirichlet_target, dev, weight_ic, Linfloss_ic, importance_sampling)
 
-            Total_L2loss_ic[step+1] = L2loss_ic.cpu().numpy()
-            Total_Linfloss_ic[step+1] = Linfloss_ic.cpu().numpy()
+            Total_L2loss_ic[step] = L2loss_ic.cpu().numpy()
+            Total_Linfloss_ic[step] = Linfloss_ic.cpu().numpy()
 
         if collect_error:
             ErrorPoints.location = create.generate_interior_points(num_error, input_dim, input_range, Domain, Domain.inside)
             L2error, Linferror = diagnostics.CalculateError(ErrorPoints_batch, num_error, Domain.volume, model, true_fun,dev)
 
-            Total_L2error[step+1] = L2error.cpu().numpy()
-            Total_Linferror[step+1] = Linferror.cpu().numpy()
+            Total_L2error[step] = L2error.cpu().numpy()
+            Total_Linferror[step] = Linferror.cpu().numpy()
 
         optimizer.step()
 
@@ -433,7 +434,7 @@ def solvePDE(parameters='', **solver):
                 ICPoints.value[indices,:] = param.init_con(ICPoints.location[indices,:])
 
         if there_are_meshes:
-            do_meshsolve = (step+1) % solvemesh_every == 0
+            do_meshsolve = step % solvemesh_every == 0
             if do_meshsolve:
                 b = Domain.mesh[0].rhs(num_mesh, model)
                 MeshPoints.value = MeshPoints.solveU(b)
@@ -451,10 +452,8 @@ def solvePDE(parameters='', **solver):
     
 
     ### Collect final loss and errors
-    ### Save model
-    ### Save pickle file
 
-    ### Final errors
+    # Final errors
     loss_error = {'loss' : {}, 'errors': {}}
     loss_error['loss']['L2 interior loss'] = Total_L2loss_interior
     loss_error['loss']['Linf interior loss'] = Total_Linfloss_interior
@@ -478,7 +477,7 @@ def solvePDE(parameters='', **solver):
         loss_error['errors']['L2 error'] = Total_L2error
         loss_error['errors']['Linf error'] = Total_Linferror
     
-    ### Save as pickle file
+    # Save as pickle file
 
     with open('experiments/' + solver_parameters['savemodel'] + '_losserror.pickle', 'wb' ) as handle:
         pickle.dump(loss_error, handle, protocol=pickle.HIGHEST_PROTOCOL)

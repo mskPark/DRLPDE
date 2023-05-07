@@ -44,10 +44,10 @@ def interior(Batch, numpts, model, make_target, var_train, dev, domainvolume, we
         Linfloss = torch.max( Linfloss, torch.sqrt( torch.max(loss).data ))
 
         # Multiply by volume
-        loss = domainvolume*torch.mean(loss)
+        loss = domainvolume*weight*torch.mean(loss)
         loss.backward()
 
-    L2loss = L2loss.detach()/numpts
+    L2loss = domainvolume*L2loss.detach()/numpts
 
     return L2loss, Linfloss, resample_index
 
@@ -95,7 +95,7 @@ def reweight(loss_max, stepsize):
     ### Gives a new weight to the boundary or initial condition losses
     ### Ensures that all losses are within the same order of magnitude
     ###    TODO: Maybe fine tuning, loss of main is 10**2 * loss of others
-    weight =  stepsize / loss_max
+    weight =  stepsize*loss_max.detach()
 
     return weight
 
