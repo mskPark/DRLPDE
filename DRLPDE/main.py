@@ -129,10 +129,17 @@ def solvePDE(parameters='', **solver):
     else:
         model = MyNeuralNetwork(input_dim, output_dim, **nn_size).to(dev)
 
+    ### AdaM Optimizer
     optimizer = torch.optim.Adam(model.parameters(), 
                                  lr=solver_parameters['optimizer']['learningrate'], 
                                  betas=solver_parameters['optimizer']['beta'], 
                                  weight_decay=solver_parameters['optimizer']['weightdecay'])
+
+    ### SGD + SGD with momentum
+    #optimizer = torch.optim.SGD(model.parameters(), 
+    #                             lr=solver_parameters['optimizer']['learningrate'],
+    #                             momentum=0.9)
+
 
     # Try LBFGS
     #   Need to figure out closure

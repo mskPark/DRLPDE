@@ -95,7 +95,7 @@ def reweight(loss_max, stepsize):
     ### Gives a new weight to the boundary or initial condition losses
     ### Ensures that all losses are within the same order of magnitude
     ###    TODO: Maybe fine tuning, loss of main is 10**2 * loss of others
-    weight =  stepsize*loss_max.detach()
+    weight =  stepsize*10**(torch.round( torch.log10(loss_max.detach())))
 
     return weight
 
