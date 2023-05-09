@@ -57,6 +57,7 @@ class SpaceDomain:
             
             if specs['type'] == 'polar':
                 self.wall.append( bdry2d.polar( polar_eq = specs['equation'],
+                                                dr = specs['derivative'],
                                                 bc = specs['boundary_condition']))
 
             ### 3D walls - Note: 2D and 3D  walls not compatible with each other

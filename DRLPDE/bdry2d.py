@@ -5,7 +5,7 @@ import numpy as np
 # 1-Dimensional Walls
 
 # Removed: Checking other walls to see if outside
-# Walls must be non-overlapping
+#          Walls must be now be non-overlapping
 
     ### Check if outside other bdrys
     ### and remake bdry points
@@ -115,15 +115,16 @@ class line:
 class polar:
 
     ### Class structure for a polar curve, the inside being the domain
-    def __init__(self, polar_eq, bc):
+    ### Make sure the theta range is [0,2pi]
+    def __init__(self, polar_eq, dr, bc):
         ### Centre and Radius
         self.polar_eq = polar_eq
-
+        self.dr = dr
         self.dim = 1
         self.bc = bc
 
-        ### TODO make general
-        self.measure = 75.4194
+        #TODO make general
+        self.measure = self.calculate_length()
             
     def make_points(self, num):
         
@@ -145,6 +146,12 @@ class polar:
         distance = self.polar_eq(theta) - torch.norm( X[:,:2] ,dim=1)
 
         return distance
+    
+    def calculate_length(self):
+        num = 1e3
+        theta = 2*math.pi*torch.rand(num)
+        L = 2*math.pi*torch.mean(torch.sqrt( self.polar_eq(theta)**2 + self.dr(theta)**2 ))
+        return L
     
     def plot(self, num_bdry):
         pass
@@ -250,9 +257,6 @@ class type2:
     ### Need to know whether its left or right
     pass
 
-# Not needed
-class inletoutlet:
-    pass
 
 # 2-Dimensional Solid Walls
 

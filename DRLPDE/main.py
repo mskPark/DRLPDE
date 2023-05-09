@@ -11,6 +11,9 @@ import DRLPDE.train as train
 import DRLPDE.diagnostics as diagnostics
 import DRLPDE.neuralnets as neuralnets
 
+# TODO: Change the code again
+#       
+
 def define_solver_parameters(problem, **solver):
 
     ## Default Training parameters
@@ -411,9 +414,9 @@ def solvePDE(parameters='', **solver):
                 # Only points found in importance sampling routine are being resampled
                 indices = indices[resample_interior]
             if walk:
-                IntPoints.location[indices,:] = method.walk(IntPoints.location[indices,:], num, model, input_dim, input_range, **var_train)
+                IntPoints.location[indices,:] = method.walk(IntPoints.location[indices,:].to(dev), num, model, input_dim, input_range, **var_train).to(IntPoints.location[indices,:].device)
             else:
-                IntPoints.location[indices,:] = create.generate_interior_points(indices.size(0), input_dim, input_range, Domain, Domain.inside)
+                IntPoints.location[indices,:] = create.generate_interior_points(indices.size(0), input_dim, input_range,  Domain, Domain.inside)
 
             if there_are_walls:
                 indices = torch.arange(num_wall)
