@@ -8,6 +8,15 @@ import numpy as np
 import DRLPDE.bdry2d as bdry2d
 import DRLPDE.bdry3d as bdry3d
 
+### TODO
+
+class AllPoints:
+    def __init__(self, spacedomain):
+
+        self.indirect = []
+        self.direct = []
+    pass
+
 ### TODO list ###
 
 # Space Domain made as the intersection of regions
@@ -261,9 +270,9 @@ class ICPoints(torch.utils.data.Dataset):
 
 class InletOutletPoints(torch.utils.data.Dataset):
     ### At inlets/outlets
-    ### Pressure specified, (velocity cross normal) specified
+    ### Pressure specified & velocity x (normal vector to inletoutlet) specified
     ### or
-    ### Gradient of pressure, (velocity cross normal) specified
+    ### Gradient of pressure & velocity x (normal vector to inletout) specified
     def __init__(self, num, domain, input_dim, input_range):
         
         Xbdry, Ubdry = generate_boundary_points(num, input_dim, input_range, domain.inletoutlet)

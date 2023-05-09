@@ -170,6 +170,7 @@ def solvePDE(parameters='', **solver):
         weight_solid = solver_parameters['weights']['solid']
 
     # Create Inlet/Outlet points and organize into batches
+
     if there_are_inletoutlets:
         num_inout = create.numBCpoints(num, input_dim, Domain, Domain.inletoutlet)
         InletOutletPoints = create.InletOutletPoints(num_inout, Domain, input_dim, input_range)
@@ -199,7 +200,7 @@ def solvePDE(parameters='', **solver):
         ErrorPoints = create.InteriorPoints(num_error, Domain, input_dim, input_range)
         ErrorPoints_batch = torch.utils.data.DataLoader(ErrorPoints, batch_size=numbatch, shuffle = True)
 
-    solver_parameters['method']['type']
+    #solver_parameters['method']['type']
     ### Method type
     if solver_parameters['method']['type'] == 'autodiff':
         import DRLPDE.autodiff as method
