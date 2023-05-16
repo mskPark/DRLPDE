@@ -128,7 +128,7 @@ class polar:
             
     def make_points(self, num):
         
-        theta = 2*math.pi*torch.rand(num)
+        theta = 2*math.pi*torch.rand(int(num))
         r = self.polar_eq(theta)
 
         Xwall = torch.stack((r*torch.cos(theta),
@@ -148,7 +148,7 @@ class polar:
         return distance
     
     def calculate_length(self):
-        num = 1e3
+        num = int(1e3)
         theta = 2*math.pi*torch.rand(num)
         L = 2*math.pi*torch.mean(torch.sqrt( self.polar_eq(theta)**2 + self.dr(theta)**2 ))
         return L
