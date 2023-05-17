@@ -23,7 +23,8 @@ if collect_error:
 x_dim = 2
 output_dim = 2
 
-# Steady or Unsteady
+# 1 for unsteady problem
+# 0 for steady problem
 t_dim = 1
 if t_dim:
     t_range = [[0.0, 1.0]]

@@ -5,17 +5,8 @@
 import torch
 import math
 import numpy as np
-import DRLPDE.bdry2d as bdry2d
+import DRLPDE.bdry as bdry
 import DRLPDE.bdry3d as bdry3d
-
-### TODO
-
-class AllPoints:
-    def __init__(self, spacedomain):
-
-        self.indirect = []
-        self.direct = []
-    pass
 
 ### TODO list ###
 
@@ -39,7 +30,7 @@ class AllPoints:
 
 ### Space Domain D in R^{d}, d = 2 or 3
 
-class SpaceDomain:
+class theDomain:
 
     def __init__(self, boundingbox, list_of_walls, solid_walls, inlet_outlet, list_of_periodic_ends, mesh):
         
@@ -47,25 +38,26 @@ class SpaceDomain:
 
         # Dirichlet boundary
         self.wall = []
+        self.wall_bdry = []
         for specs in list_of_walls:
             ### 2D walls
             if specs['type'] == 'line':
-                self.wall.append( bdry2d.line( endpoints = specs['endpoints'],
+                self.wall.append( bdry.line( endpoints = specs['endpoints'],
                                                       normal = specs['normal'],
                                                       bc = specs['boundary_condition'] ))
             
             if specs['type'] == 'circle':
-                self.wall.append( bdry2d.circle( centre = specs['centre'],
+                self.wall.append( bdry.circle( centre = specs['centre'],
                                                       radius = specs['radius'], 
                                                       bc = specs['boundary_condition'] ))
 
             if specs['type'] == 'ring':
-                self.wall.append( bdry2d.ring( centre = specs['centre'],
+                self.wall.append( bdry.ring( centre = specs['centre'],
                                                       radius = specs['radius'], 
                                                       bc = specs['boundary_condition'] ))
             
             if specs['type'] == 'polar':
-                self.wall.append( bdry2d.polar( polar_eq = specs['equation'],
+                self.wall.append( bdry.polar( polar_eq = specs['equation'],
                                                 bc = specs['boundary_condition']))
 
             ### 3D walls - Note: 2D and 3D  walls not compatible with each other
@@ -100,10 +92,11 @@ class SpaceDomain:
 
         # Inlets and outlets
         self.inletoutlet = []
+        self.inletoutlet_bdry = []
         for specs in inlet_outlet:
             ### 2D inlet/outlet
             if specs['type'] == 'line':
-                self.inletoutlet.append( bdry2d.line( endpoints = specs['endpoints'],
+                self.inletoutlet.append( bdry.line( endpoints = specs['endpoints'],
                                                       normal = specs['normal'],
                                                       bc = specs['boundary_condition'] ))
             
@@ -118,7 +111,7 @@ class SpaceDomain:
         self.solid = []
         for specs in solid_walls:
             if specs['type'] == 'disk':
-                self.solid.append( bdry2d.disk( centre = specs['centre'],
+                self.solid.append( bdry.disk( centre = specs['centre'],
                                                       radius = specs['radius'],
                                                       bc = specs['boundary_condition'] ))
             
@@ -130,8 +123,8 @@ class SpaceDomain:
         # Mesh
         self.mesh = []
         for specs in mesh:
-            if specs['type'] == 'box':
-                    self.mesh.append( bdry2d.box(xint = specs['xinterval'],
+            if specs['type'] == 'grid':
+                    self.mesh.append( bdry.box(xint = specs['xinterval'],
                                                  yint = specs['yinterval']))
 
         # Walker boundary. If walker crosses, flag and bring to boundary, evaluate BC
@@ -143,9 +136,6 @@ class SpaceDomain:
         # Calculate volume of domain
         # Change the number of digits required
         self.volume = self.volumeDomain(1e-3)
-
-        # Domain knows the initial condition
-        # self.initial_con = initial_con
 
     ### Calculate volume of the domain
     def volumeDomain(self, std):
@@ -203,6 +193,45 @@ class bdry_periodic:
 
         self.bot = bot
         self.top = top
+
+class thePoints:
+
+    def __init__(self):
+
+        self.toTrain = [InteriorPoints(num, domain, input_dim, input_range)]
+        self.target = [interior_target]
+        self.L2optimizers = [torch.optim.Adam()]
+        self.Linfoptimizers = [torch.optim.Adam()]
+
+        for bdry in domain.bdry:
+            self.toTrain.append()
+            self.target.append()
+            self.L2optimizers.append()
+            self.Linfoptimizers.append()
+        
+        for inletoutlet in domain.inletoutlet:
+            self.toTrain.append()
+            self.target.append()
+            self.L2optimizers.append()
+            self.Linfoptimizers.append()
+        
+        for mesh in domain.mesh:
+            self.toTrain.append()
+            self.target.append()
+            self.L2optimizers.append()
+            self.Linfoptimizers.append()
+
+        if unsteady:
+            self.toTrain.append()
+            self.target.append()
+            self.L2optimizers.append()
+            self.Linfoptimizers.append()
+
+        # Points.toTrain = [Interior, Bdry, ... , Bdry, IC]
+        # Points.target = [target, BC, ... , BC, IC]
+        # Points.L2optimizers = [op1, ...., opx]
+        # Points.Linfoptimizers = [op1, ..., opx]
+        # Points.error = [] or [interior, bdry, ..., bdry, IC]
 
 ### DataLoader classes for different types of points
 
@@ -341,10 +370,11 @@ class MeshPoints(torch.utils.data.Dataset):
     def __getitem__(self, index):
         return self.location[index,:], self.value[index,:], index
 
-### Number of points to guarantee Mean Minimum Distance
+### Number of points along boundary
+###   based on Mean Minimum Distance
 def num_points_wall(N, l, V, d, d0):
 
-    Nw = int( torch.round( (l/V)**(d0/2) * N**(d0/d) ).detach().numpy() )
+    Nw = int( 4*torch.round( (l/V)**(d0/2) * N**(d0/d) ).detach().numpy() + 1 )
 
     return Nw
 

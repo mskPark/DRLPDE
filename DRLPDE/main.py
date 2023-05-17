@@ -11,13 +11,15 @@ import DRLPDE.train as train
 import DRLPDE.diagnostics as diagnostics
 import DRLPDE.neuralnets as neuralnets
 
-def define_solver_parameters(problem, **solver):
+### Pytorch default datatype is float32, to change, uncomment the line below
+# torch.set_default_dtype(torch.float64)
+
+def define_solver_parameters(**solver):
 
     ## Default Training parameters
     now = datetime.datetime.now()
 
-    solver_parameters = {'problem': problem,
-                         'savemodel': now.strftime('%b%d_%I%M%p'),
+    solver_parameters = {'savemodel': now.strftime('%b%d_%I%M%p'),
                          'loadmodel': '',
                          'numpts': 2**12,
                          'numbatch': 2**12,
@@ -53,6 +55,121 @@ def define_solver_parameters(problem, **solver):
 
     return solver_parameters
 
+def define_problem_parameters(parameters, solver_parameters):
+
+    if parameters:
+        param = importlib.import_module("." + parameters, package='examples')
+        problem = 'examples/' + parameters + '.py'
+    else:
+        import DRLPDE.parameters as param
+        problem = 'default_parameters.py'
+
+    problem_parameters = {'problem': problem,
+                          'input_dim': [param.x_dim, param.t_dim, param.hyper_dim],
+                          'output_dim': param.output_dim,
+                          'input_range': param.boundingbox + param.t_range + param.hyper_range,
+                          'Boundaries': [param.boundingbox,
+                                         param.list_of_walls, 
+                                         param.solid_walls, 
+                                         param.inlet_outlet, 
+                                         param.list_of_periodic_ends, 
+                                         param.mesh]}
+
+    if param.collect_error:
+        problem_parameters['error'] = {'num_error': param.num_error,
+                                       'true_fun': param.true_fun}
+    else:
+        problem_parameters['error'] = {'num_error': 0}
+
+    if param.t_dim:
+        problem_parameters['IC'] = {param.init_con}
+
+    ### Method type
+    if solver_parameters['method']['type'] == 'autodiff':
+        import DRLPDE.autodiff as method
+        var_train = {'diffusion': param.diffusion,
+                                           'forcing': param.forcing}
+        
+         ### PDE
+        if param.t_dim:
+            if param.pde_type == 'NavierStokes':
+                make_target = method.unsteadyNavierStokes
+            elif param.pde_type == 'viscousBurgers':
+                make_target = method.unsteadyViscousBurgers
+        else:
+            if param.pde_type == 'NavierStokes':
+                make_target = method.steadyNavierStokes
+            elif param.pde_type == 'viscousBurgers':
+                make_target = method.steadyViscousBurgers
+            elif param.pde_type == 'Stokes':
+                make_target = method.Laplace
+            elif param.pde_type == 'Laplace':
+                make_target = method.Laplace
+
+    elif solver_parameters['method']['type'] == 'stochastic':
+        import DRLPDE.stochastic as method
+        var_train = {'diffusion': param.diffusion,
+                    'forcing': param.forcing, 
+                    'dt': solver_parameters['method']['dt'],
+                    'num_ghost': solver_parameters['method']['num_ghost'], 
+                    'tol': solver_parameters['method']['tol']
+                    }
+
+        ### PDE
+        if param.t_dim:
+            var_train['ic'] = param.init_con
+            if param.pde_type == 'NavierStokes':
+                make_target = method.unsteadyNavierStokes
+            elif param.pde_type == 'viscousBurgers':
+                make_target = method.unsteadyViscousBurgers
+            elif param.pde_type == 'Stokes':
+                make_target = method.Heat
+            elif param.pde_type == 'Heat':
+                make_target = method.Heat
+        else:
+            if param.pde_type == 'NavierStokes':
+                make_target = method.steadyNavierStokes
+            elif param.pde_type == 'viscousBurgers':
+                make_target = method.steadyViscousBurgers
+            elif param.pde_type == 'Stokes':
+                make_target = method.Laplace
+            elif param.pde_type == 'Laplace':
+                make_target = method.Laplace
+
+    elif solver_parameters['method']['type'] == 'direct':
+        var_train = {'true_fun': param.true_fun}
+        make_target = train.Direct_target
+        
+    elif solver.method == 'finitediff':
+        pass
+    
+    problem_parameters['var_train'] = var_train
+    problem_parameters['InteriorTarget'] = make_target
+
+    return problem_parameters
+
+def define_neuralnetwork(problem_parameters, solver_parameters):
+
+    # TODO: More Neural Network Architectures
+    if solver_parameters['neuralnetwork'] == 'FeedForward':
+        MyNeuralNetwork = neuralnets.FeedForwardNN
+    elif solver_parameters['neuralnetwork'] == 'Incompressible':
+        MyNeuralNetwork = neuralnets.IncompressibleNN
+
+    nn_size = solver_parameters['nn_size']
+
+    if solver_parameters['loadmodel']:
+        model = MyNeuralNetwork(problem_parameters['input_dim'],
+                                problem_parameters['output_dim'],
+                                **nn_size)
+        model.load_state_dict(torch.load("savedmodels/" + solver_parameters['loadmodel'] + ".pt"))
+        print("Using model from savedmodels/" + solver_parameters['loadmodel']+ ".pt")
+    else:
+        model = MyNeuralNetwork(problem_parameters['input_dim'],
+                                problem_parameters['output_dim'],
+                                **nn_size)
+
+    return model
 
 def solvePDE(parameters='', **solver):
 
@@ -62,72 +179,26 @@ def solvePDE(parameters='', **solver):
     # Use GPU if available
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
-    ### Parameters of the Problem
+    ### Training Parameters
+    solver_parameters = define_solver_parameters(**solver)
 
-    if parameters:
-        param = importlib.import_module("." + parameters, package='examples')
-        problem = 'examples/' + parameters + '.py'
-    else:
-        import DRLPDE.parameters as param
-        problem = 'default_parameters.py'
+    ### Problem Parameters
+    problem_parameters = define_problem_parameters(parameters, solver_parameters)
 
-    # Dimensions of problem
-    input_dim = [param.x_dim, param.t_dim, param.hyper_dim]
-    
-    output_dim = param.output_dim
-
-    # Intervals
-    input_range = param.boundingbox + param.t_range + param.hyper_range
-    
-    # Boolean for each wall type
-    there_are_walls = any(param.list_of_walls)
-    there_are_solids = any(param.solid_walls)
-    there_are_inletoutlets = any(param.inlet_outlet)
-    there_are_meshes = any(param.mesh)
-    unsteady = bool(param.t_dim)
-
-    # Diagnostics 
-    collect_error = param.collect_error
-    if collect_error:
-        num_error = param.num_error
-        true_fun = param.true_fun
-
-    ### Reorganize training parameters
-    solver_parameters = define_solver_parameters(problem, **solver)
-
-    # Training parameters
+    # TODO Get rid of this
     trainingsteps = int(solver_parameters['trainingsteps'])
-    
     num = solver_parameters['numpts']
     numbatch = solver_parameters['numbatch']
-    
     resample_every = solver_parameters['resample_every']
     walk = solver_parameters['walk']
     importance_sampling = solver_parameters['importance_sampling']
-
     reweight_every = solver_parameters['adaptive_weighting']['reweight_every']
     stepsize = solver_parameters['adaptive_weighting']['stepsize']
-
     print_every = 1.1 #round(trainingsteps/10)
 
-    ###
-    ### Initialize the Neural Network
-    ###
 
-    # TODO: Choose other neural network architectures from neuralnets.py
-    if solver_parameters['neuralnetwork'] == 'FeedForward':
-        MyNeuralNetwork = neuralnets.FeedForwardNN
-    elif solver_parameters['neuralnetwork'] == 'Incompressible':
-        MyNeuralNetwork = neuralnets.IncompressibleNN
-
-    nn_size = solver_parameters['nn_size']
-
-    if solver_parameters['loadmodel']:
-        model = MyNeuralNetwork(input_dim, output_dim, **nn_size).to(dev)
-        model.load_state_dict(torch.load("savedmodels/" + param.loadmodel + ".pt"))
-        print("Using model from savedmodels/" + param.loadmodel + ".pt")
-    else:
-        model = MyNeuralNetwork(input_dim, output_dim, **nn_size).to(dev)
+    ### Neural Network
+    model = define_neuralnetwork(problem_parameters, solver_parameters).to(dev)
 
     optimizer = torch.optim.Adam(model.parameters(), 
                                  lr=solver_parameters['optimizer']['learningrate'], 
@@ -138,17 +209,22 @@ def solvePDE(parameters='', **solver):
     #   Need to figure out closure
     #optimizer = torch.optim.LBFGS(model.parameters(), lr=1, max_iter=20, max_eval=None, tolerance_grad=1e-07, tolerance_change=1e-09, history_size=100, line_search_fn=None)
 
-    ###
     ### Create domain and points
-    ###
     
     # Define the Physical domain through its boundaries
-    Domain = create.SpaceDomain(param.boundingbox, 
-                                param.list_of_walls, 
-                                param.solid_walls, 
-                                param.inlet_outlet, 
-                                param.list_of_periodic_ends, 
-                                param.mesh)
+    Domain = create.theDomain(problem_parameters)
+
+    ### TODO
+    ### Incorporate resample/walk inside Points
+    Points = create.thePoints(Domain, problem_parameters, solver_parameters)
+
+    # Train once
+    for ii in range(len(Points.toTrain)):
+        L2loss, Linfloss, resample_index = train.L2Linfloss(Points)
+        diagnostics.CollectErrors(Points.forError)
+
+    ###
+    
 
     # Create Interior points and organize into batches
     IntPoints = create.InteriorPoints(num, Domain, input_dim, input_range)
@@ -200,76 +276,6 @@ def solvePDE(parameters='', **solver):
         ErrorPoints = create.InteriorPoints(num_error, Domain, input_dim, input_range)
         ErrorPoints_batch = torch.utils.data.DataLoader(ErrorPoints, batch_size=numbatch, shuffle = True)
 
-    #solver_parameters['method']['type']
-    ### Method type
-    if solver_parameters['method']['type'] == 'autodiff':
-        import DRLPDE.autodiff as method
-        var_train = {'diffusion': param.diffusion,
-                     'forcing': param.forcing,
-                     'x_dim': input_dim[0]
-                    }
-        
-         ### PDE
-        if unsteady:
-            if param.pde_type == 'NavierStokes':
-                make_target = method.unsteadyNavierStokes
-            elif param.pde_type == 'viscousBurgers':
-                make_target = method.unsteadyViscousBurgers
-        else:
-            if param.pde_type == 'NavierStokes':
-                make_target = method.steadyNavierStokes
-            elif param.pde_type == 'viscousBurgers':
-                make_target = method.steadyViscousBurgers
-            elif param.pde_type == 'Stokes':
-                make_target = method.Laplace
-            elif param.pde_type == 'Laplace':
-                make_target = method.Laplace
-
-    elif solver_parameters['method']['type'] == 'stochastic':
-        import DRLPDE.stochastic as method
-        var_train = {'diffusion': param.diffusion,
-                    'forcing': param.forcing, 
-                    'x_dim': input_dim[0],
-                    'domain': Domain,
-                    'dt': solver_parameters['method']['dt'],
-                    'num_ghost': solver_parameters['method']['num_ghost'], 
-                    'tol': solver_parameters['method']['tol']
-                    }
-
-        ### PDE
-        if unsteady:
-            var_train['ic'] = param.init_con
-            if param.pde_type == 'NavierStokes':
-                make_target = method.unsteadyNavierStokes
-            elif param.pde_type == 'viscousBurgers':
-                make_target = method.unsteadyViscousBurgers
-            elif param.pde_type == 'Stokes':
-                make_target = method.Heat
-            elif param.pde_type == 'Heat':
-                make_target = method.Heat
-        else:
-            if param.pde_type == 'NavierStokes':
-                make_target = method.steadyNavierStokes
-            elif param.pde_type == 'viscousBurgers':
-                make_target = method.steadyViscousBurgers
-            elif param.pde_type == 'Stokes':
-                make_target = method.Laplace
-            elif param.pde_type == 'Laplace':
-                make_target = method.Laplace
-
-    elif solver_parameters['method']['type'] == 'direct':
-        var_train = {'true_fun': param.true_fun}
-        make_target = train.Direct_target
-        
-    elif solver.method == 'finitediff':
-        pass
-        # import finitediff as method
-        # var_train = {}
-
-    ###
-    ### Training the neural network
-    ###
-
     ###
     ### Train once
     ###
@@ -278,7 +284,7 @@ def solvePDE(parameters='', **solver):
 
     # Interior
 
-    L2loss_interior, Linfloss_interior, resample_interior = train.interior(IntPoints_batch, num, model, make_target, var_train, dev, Domain.volume, weight_interior, 0.0, False)
+    L2loss_interior, Linfloss_interior, resample_interior = train.interior(IntPoints, num, model, make_target, var_train, dev, Domain.volume, weight_interior, 0.0, False)
     
     Total_L2loss_interior = L2loss_interior.cpu().numpy()*np.ones(trainingsteps)
     Total_Linfloss_interior = Linfloss_interior.cpu().numpy()*np.ones(trainingsteps)

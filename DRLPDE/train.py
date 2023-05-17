@@ -20,34 +20,49 @@ def closure():
 # And then perform the optimizer step by
 # optimizer.step(closure)
 
-# TODO datatype int64 may be overkill for resample index
+# datatype int64 may be overkill for resample index
 
-def interior(Batch, numpts, model, make_target, var_train, dev, domainvolume, weight, max_loss, importance_sampling):
-    # For interior points
-    # Batch: X, index
+def L2Linfloss(Points, dev, numtotal, numbatch, model, target, var_train, max_loss=0.0, importance_sampling=False):
+    # Points.toTrain
+    # dev, numtotal, numbatch
+    # target( X, model, volume, var_train) 
+    # L2optimizer, Linfoptimizer
+    # volume (region scaling)
+    # max_loss, importance sampling
 
-    # Output: Total L2 loss, Linf loss
+    Batch = torch.utils.data.DataLoader(Points, batch_size=numbatch, shuffle=True)
 
     # Indices to resample
     resample_index = torch.tensor([], dtype=torch.int64)
+
+    # L2 and Linf losses
     L2loss = torch.tensor(0.0, device=dev)
     Linfloss = torch.tensor(0.0, device=dev)
 
-    # Do in batches
+    # TODO: Test Batch Gradient Descent
+    L2optimizer.zero_grad()
     for X, index in Batch:
-        #X.to(dev).requires_grad_(True)
-        loss = make_target(X.to(dev).requires_grad_(True), model, **var_train)
+        loss = target(X.requires_grad_(), model, **var_train)
+
         if importance_sampling:
             resample_index = find_resample(X, index, loss, resample_index, max_loss)
 
-        L2loss += torch.sum(loss)
-        Linfloss = torch.max( Linfloss, torch.sqrt( torch.max(loss).data ))
+        L2loss_batch = torch.sum(loss)/numtotal
+        L2loss += L2loss_batch
+        Linfloss = torch.max( Linfloss, torch.sqrt( torch.max(loss) ))
 
-        # Multiply by volume
-        loss = domainvolume*torch.mean(loss)
-        loss.backward()
+        # To train Linfloss, either save the argmax and calculate Linf
+        #                    or just use directly?
+        # SquaredError(model(X[]))
 
-    L2loss = L2loss.detach()/numpts
+        # Collect gradients on L2loss
+        L2loss_batch.backward()
+
+    L2optimizer.step()
+
+    Linfoptimizer.zero_grad()
+    Linfloss.backward()
+    Linfoptimizer.step()
 
     return L2loss, Linfloss, resample_index
 
