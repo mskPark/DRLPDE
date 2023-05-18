@@ -147,8 +147,34 @@ class polar:
 
         return distance
     
-    def plot(self, num_bdry):
+    def integral(self, X):
         pass
+
+class wedge:
+    ### Use angles to sample along disk
+
+    #if len(endpoints) == 0:
+    #    self.angles = [0, 2*math.pi]
+    #else:
+    #    self.angles = []
+    #    for point in endpoints:
+    #        self.angles.append( np.angle( np.complex( point[0] - self.centre[0], point[1] - self.centre[1] ) ) )
+    #    if self.angles[1] < self.angles[0]:
+    #        self.angles[1] += 2*math.pi
+
+    pass
+
+class type1:
+    ### (x, g(x)), range over x
+    ### Need to know whether its bottom or top
+    pass
+
+class type2:
+    ### (h(y), y), range over y
+    ### Need to know whether its left or right
+    pass
+
+# 2-Dimensional Grid
 
 class grid:
     ### Class structure for a box mesh, the inside is the domain
@@ -226,30 +252,6 @@ class grid:
     
     def plot(self, num_bdry):
         pass
-
-class wedge:
-    ### Use angles to sample along disk
-
-    #if len(endpoints) == 0:
-    #    self.angles = [0, 2*math.pi]
-    #else:
-    #    self.angles = []
-    #    for point in endpoints:
-    #        self.angles.append( np.angle( np.complex( point[0] - self.centre[0], point[1] - self.centre[1] ) ) )
-    #    if self.angles[1] < self.angles[0]:
-    #        self.angles[1] += 2*math.pi
-
-    pass
-
-class type1:
-    ### (x, g(x)), range over x
-    ### Need to know whether its bottom or top
-    pass
-
-class type2:
-    ### (h(y), y), range over y
-    ### Need to know whether its left or right
-    pass
 
 # 2-Dimensional Solid Walls
 

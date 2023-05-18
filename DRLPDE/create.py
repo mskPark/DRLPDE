@@ -6,7 +6,9 @@ import torch
 import math
 import numpy as np
 import DRLPDE.bdry as bdry
-import DRLPDE.bdry3d as bdry3d
+
+# Sum of Squared Error
+SSE = torch.nn.MSELoss(reduction='none')
 
 ### TODO list ###
 
@@ -32,13 +34,18 @@ import DRLPDE.bdry3d as bdry3d
 
 class theDomain:
 
-    def __init__(self, boundingbox, list_of_walls, solid_walls, inlet_outlet, list_of_periodic_ends, mesh):
-        
-        self.boundingbox = boundingbox
+    def __init__(self, problem_parameters):
 
-        # Dirichlet boundary
+        self.boundingbox = problem_parameters['Boundaries'][0]
+
+        list_of_walls = problem_parameters['Boundaries'][1]
+        solid_walls = problem_parameters['Boundaries'][2]
+        inlet_outlet = problem_parameters['Boundaries'][3]
+        list_of_periodic_ends = problem_parameters['Boundaries'][4]
+        mesh = problem_parameters['Boundaries'][5]
+
+        # Dirichlet walls
         self.wall = []
-        self.wall_bdry = []
         for specs in list_of_walls:
             ### 2D walls
             if specs['type'] == 'line':
@@ -62,23 +69,23 @@ class theDomain:
 
             ### 3D walls - Note: 2D and 3D  walls not compatible with each other
             if specs['type'] == 'sphere':
-                self.wall.append( bdry3d.sphere( centre = specs['centre'], 
+                self.wall.append( bdry.sphere( centre = specs['centre'], 
                                                      radius = specs['radius'], 
                                                      bc = specs['boundary_condition']))
             
             if specs['type'] == 'ball':
-                self.wall.append( bdry3d.ball( centre = specs['centre'],
+                self.wall.append( bdry.ball( centre = specs['centre'],
                                                    radius = specs['radius'],
                                                    bc = specs['boundary_condition']))
             
             if specs['type'] == 'cylinder':
-                self.wall.append( bdry3d.cylinder( centre = specs['centre'],
+                self.wall.append( bdry.cylinder( centre = specs['centre'],
                                                        radius = specs['radius'],
                                                        ### TODO axis of rotation
                                                        bc = specs['boundary_condition'] ))
             
             if specs['type'] == 'plane':
-                self.wall.append( bdry3d.plane( point = specs['point'],
+                self.wall.append( bdry.plane( point = specs['point'],
                                                     normal = specs['normal'],
                                                     corners = specs['corners'],
                                                     bc = specs['boundary_condition']))
@@ -92,7 +99,6 @@ class theDomain:
 
         # Inlets and outlets
         self.inletoutlet = []
-        self.inletoutlet_bdry = []
         for specs in inlet_outlet:
             ### 2D inlet/outlet
             if specs['type'] == 'line':
@@ -128,30 +134,30 @@ class theDomain:
                                                  yint = specs['yinterval']))
 
         # Walker boundary. If walker crosses, flag and bring to boundary, evaluate BC
-        self.boundary = self.wall + self.inletoutlet
+        self.exitflag = self.wall + self.inletoutlet
 
         # For checking whether points are inside/outside the domain
         self.inside = self.wall + self.inletoutlet + self.mesh
 
         # Calculate volume of domain
         # Change the number of digits required
-        self.volume = self.volumeDomain(1e-3)
+        self.volume = self.volumeDomain(1e-2)
 
     ### Calculate volume of the domain
     def volumeDomain(self, std):
         # Approximates volume of domain through Monte Carlo Integration
         # Sample from boundingbox B, estimate volume of domain D as
         # vol(D) = vol(B)*(fraction of samples inside D)
-        # std of estimate ~ vol(B) / sqrt(N)
-
-        volB = 1
+        # standard error = sqrt( vol(B)**2 (1-frac)*frac) /N /(N-1) ) ~~ volB/2N for (1-frac)frac maximized
+        # 
+        volB = 1.0
 
         # Calculate volume of boundingbox
         for ii in range(len(self.boundingbox)):
             volB = volB*(self.boundingbox[ii][1] - self.boundingbox[ii][0])
 
         # Calculate number needed to get std within tol (approximate)
-        num = np.int( (volB/std)**2 ) 
+        num = np.int( (volB/std/2) ) 
         X = torch.empty( (num, len(self.boundingbox)) )
 
         # Uniformly sample from boundingbox
@@ -159,19 +165,11 @@ class theDomain:
             X[:,ii] = (self.boundingbox[ii][1] - self.boundingbox[ii][0])*torch.rand( (num) ) + self.boundingbox[ii][0]
 
         outside = torch.zeros( X.size(0), dtype=torch.bool)
-        for wall in self.boundary + self.mesh:
+        for wall in self.inside:
             outside += wall.distance(X) < 0
         
         frac = (num - torch.sum(outside))/num
         volD = volB*frac
-
-        #standard_error = torch.sqrt( volB**2 ( 1 - frac)*frac/num/(num-1) )
-
-        # 95% confident that the answer = VolD +- standard_error*1.96 
-        # TODO: If 2*1.96*standard_error > 0.01 (For 2 digit accuracy, 95% confidence)
-        #       Redo, and use the previous answer to double the number of points.
-        #       Repeat until we have desired accuracy.
-
 
         return volD
 
@@ -194,44 +192,216 @@ class bdry_periodic:
         self.bot = bot
         self.top = top
 
+
+### Points
 class thePoints:
+    
+    # TODO Try LBFGS
+    # optimizer = torch.optim.LBFGS(model.parameters(), lr=1, max_iter=20, max_eval=None, tolerance_grad=1e-07, tolerance_change=1e-09, history_size=100, line_search_fn=None)
+    # def closure():
+    #     if torch.is_grad_enabled():
+    #        optimizer.zero_grad()
+    #     output = model(input)
+    #     loss = loss_fn(output, target)
+    #     if loss.requires_grad:
+    #        loss.backward()
+    #     return loss
 
-    def __init__(self):
+    def __init__(self, num, domain, model, problem_parameters, solver_parameters, dev):
+        # Organize some variables
+        input_dim = problem_parameters['input_dim']
+        input_range = problem_parameters['input_range']
+        unsteady = bool(input_dim[1])
+        var_train = problem_parameters['var_train']
+        interior_target = problem_parameters['InteriorTarget']
 
-        self.toTrain = [InteriorPoints(num, domain, input_dim, input_range)]
+        # Interior Points
+        self.toTrain = [InteriorPoints(num, domain, input_dim, input_range, dev)]
         self.target = [interior_target]
-        self.L2optimizers = [torch.optim.Adam()]
-        self.Linfoptimizers = [torch.optim.Adam()]
+        self.var = [var_train]
+        self.L2optimizers = [torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
+                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay'])]
+        self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
+                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay'])]
+        self.resample = [[]]
 
-        for bdry in domain.bdry:
-            self.toTrain.append()
-            self.target.append()
-            self.L2optimizers.append()
-            self.Linfoptimizers.append()
-        
+        # domain.wall + domain.solid
+        for bdry in domain.wall + domain.solid:
+            nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0], bdry.dim)
+
+            self.toTrain.append(BCPoints(nb, domain, bdry, input_dim, input_range, dev))
+            self.target.append(Dirichlet_target)
+            self.var.append({'true':bdry.bc})
+            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
+                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
+            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
+                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
+            self.resample.append([])
+
+        # TODO domain.inletoutlet
         for inletoutlet in domain.inletoutlet:
-            self.toTrain.append()
-            self.target.append()
-            self.L2optimizers.append()
-            self.Linfoptimizers.append()
-        
+            nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0] + input_dim[1], bdry.dim)
+            self.toTrain.append(BCPoints(nb, inletoutlet, input_dim, input_range))
+            self.target.append(Inletoutlet_target)
+            self.var.append(inletoutlet.bc)
+            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
+                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
+            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
+                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
+            self.resample.append([])
+        # TODO mesh
         for mesh in domain.mesh:
-            self.toTrain.append()
+            self.toTrain.append(MeshPoints(num_mesh, mesh))
             self.target.append()
+            self.var.append()
             self.L2optimizers.append()
             self.Linfoptimizers.append()
-
+            self.resample.append([])
+        # TODO Unsteady problem
         if unsteady:
             self.toTrain.append()
             self.target.append()
+            self.var.append()
             self.L2optimizers.append()
             self.Linfoptimizers.append()
+            self.resample.append([])
 
-        # Points.toTrain = [Interior, Bdry, ... , Bdry, IC]
-        # Points.target = [target, BC, ... , BC, IC]
-        # Points.L2optimizers = [op1, ...., opx]
-        # Points.Linfoptimizers = [op1, ..., opx]
-        # Points.error = [] or [interior, bdry, ..., bdry, IC]
+        # How many points
+        self.numtype = int(len(self.toTrain))
+
+    def TrainL2LinfLoss(self, model, dev, numbatch, collect_losses, importance_sampling=False):
+
+        # dev, numbatch
+        # target( X, model, volume, var_train) 
+        # max_loss, importance sampling
+
+        for ii in range(self.numtype):
+            # Organize into batch
+            numpts = self.toTrain[ii].__len__()
+            Batch = torch.utils.data.DataLoader(self.toTrain[ii], batch_size=numbatch, shuffle=True)
+
+            # Indices to resample
+            resample_index = torch.tensor([], dtype=torch.int64)
+
+            # L2 and Linf losses
+            L2loss = torch.tensor(0.0, device=dev)
+            Linfloss = torch.tensor( 0.0, device=dev)
+
+            previous_max = collect_losses[ii,1]
+
+            #max_loss = collect_losses[1]
+
+            # TODO (Maybe) Test Batch Gradient Descent
+            self.L2optimizers[ii].zero_grad()
+            for X, index in Batch:
+
+                loss = self.target[ii](X.requires_grad_(), model, **self.var[ii])
+
+                if importance_sampling:
+                    resample_index = self.find_resample(X, index, loss, resample_index, previous_max)
+
+                L2loss_batch = torch.sum(loss)/numpts
+                L2loss += L2loss_batch
+
+                # Collect the index where the max happens
+                max, jj = torch.max(loss, dim=0)
+                if max > Linfloss:
+                    max_index = index[jj]
+
+                # Collect gradients on L2loss of each batch
+                L2loss_batch.backward()
+
+            # Step for L2 optimization
+            self.L2optimizers[ii].step()
+
+            # Train for Linf optimization
+            self.Linfoptimizers[ii].zero_grad()
+            Linfloss = self.target[ii](X[max_index,:].requires_grad_(), model, **self.var[ii])
+            Linfloss.backward()
+            
+            # Step for Linf optimization
+            self.Linfoptimizers[ii].step()
+
+            collect_losses[ii] = [L2loss.data.cpu().numpy(), Linfloss.data.cpu().numpy()]
+
+        return collect_losses
+
+    # TODO
+
+    def ResamplePoints(self):
+        for ii in range(self.numtype):
+            indices = torch.arange(self.toTrain[ii].__len__())
+            if any(self.resample[ii]):
+                indices = indices[self.resample[ii]]
+            self.toTrain[ii].location[indices,:] = self.toTrain[ii].generate_points(indices.size(0), domain, input_dim, input_range)
+
+### Number of points along boundary
+###   based on Mean Minimum Distance
+def num_points_wall(N, l, V, d, d0):
+    Nw = int( 4*torch.round( (l/V)**(d0/2) * N**(d0/d) ).detach().numpy() + 1 )
+    return Nw
+
+def Dirichlet_target(X, model, true, **var):
+    target = SSE(model(X), true(X).detach())
+
+    return target
+
+def Inletoutlet_target(X, model, true):
+    # (u,v,w, p)
+    # Target = p - true_pressure
+    UP = model(X)
+
+    target = SSE(UP[:,-1], true(X).detach())
+
+    return target
+
+def find_resample(X, index, loss, resample_index, max_loss):
+    ### Rejection sampling ###
+    # generate uniform( max_loss )
+    # Compare sample < uniform
+    # Then resample
+    check_sample = max_loss*torch.rand(X.size(0), device=X.device)
+
+    resample_index = torch.cat( (resample_index, index[loss[:,0] < check_sample]))
+
+    return resample_index
+
+
+# TODO
+class ErrorPoints():
+
+    def CalculateError(Batch, numpts, volume, model, true_fun, dev):
+        # Batch: X, index
+
+        # Output: Total L2 loss, Linfloss
+
+        # Indices to resample
+        SE = torch.tensor(0.0, device=dev)
+        Linferror = torch.tensor(0.0, device=dev)
+        SVar = torch.tensor(0.0, device=dev)
+
+        # Do in batches
+        for X, index in Batch:
+            #X.to(dev).requires_grad_(True)
+
+            Y = model(X.to(dev).requires_grad_(True))
+            Ytrue = true_fun(X.to(dev).requires_grad_(True))
+            
+            batch_error = CalculateSquaredError(Y.detach(), Ytrue.detach())
+            batch_var = batch_error**2
+
+            SE += torch.sum(batch_error)
+            Linferror = torch.max( Linferror, torch.sqrt( torch.max(batch_error) ))
+
+            SVar += torch.sum(batch_var)
+
+        L2error = volume*SE.detach()/numpts
+
+        # Standard error TODO
+        # StandardError = torch.sqrt( (Domain.volume**2 SVar/numpts/(numpts-1) - Domain.volume * SE**2/( numpts-1 ) )
+        
+        return L2error, Linferror
+    pass
 
 ### DataLoader classes for different types of points
 
@@ -240,11 +410,41 @@ class InteriorPoints(torch.utils.data.Dataset):
     ### Points that are inside the domain
     ###
 
-    def __init__(self, num, domain, input_dim, input_range):
+    def __init__(self, num, domain, input_dim, input_range, dev):
         
-        self.location = generate_interior_points(num, input_dim, input_range, domain, domain.inside)
+        self.location = self.generate_points(num, input_dim, input_range, domain).to(dev)
         self.num_pts = num
-    
+
+    def generate_points(self, num, input_dim, input_range, domain):
+        ### Generate points inside the domain
+
+        X = torch.zeros( ( num, int(np.sum(input_dim)) ) )
+
+        for ii in range(input_dim[0]):
+            X[:,ii] = (input_range[ii][1] - input_range[ii][0])*torch.rand( (num) ) + input_range[ii][0]
+
+        outside = torch.zeros( X.size(0), dtype=torch.bool)
+        for wall in domain.inside:
+            outside += wall.distance(X) < 0
+
+        if any(outside):
+            X[outside,:] = self.generate_points(torch.sum(outside), input_dim, input_range, domain)
+            
+        if input_dim[1]:
+            # Fill in time values
+            t = input_dim[0]
+            X[:,t] = (input_range[t][1] - input_range[t][0])*torch.rand( (num) ) + input_range[t][0]
+
+        if input_dim[2]:
+            # Fill in hyperparameter values
+            # TODO Do exponential scaling
+            hstart = input_dim[0] + input_dim[1]
+            hend = sum(input_dim)
+            for jj in range(hstart, hend):
+                X[:,jj] = (input_range[jj][1] - input_range[jj][0])*torch.rand( (num) ) + input_range[jj][0]
+
+        return X
+
     ### Required def for Dataset class
     def __len__(self):
         # How many data points are there?
@@ -260,19 +460,39 @@ class BCPoints(torch.utils.data.Dataset):
     ### Evaluate the Dirichlet boundary condition at these points
     ###
     
-    def __init__(self, num, domain, input_dim, input_range):
+    def __init__(self, num, domain, bdry, input_dim, input_range, dev):
         
-        Xbdry, Ubdry = generate_boundary_points(num, input_dim, input_range, domain.wall)
-        
-        self.location = Xbdry
         self.num_pts = num
-        self.value = Ubdry
-        
+        self.bdry = bdry
+
+        self.location = self.generate_points(num, input_dim, input_range, domain).to(dev)
+
+    def generate_points(self, nb, input_dim, input_range, domain):
+
+        Xbdry = torch.zeros( (nb, int(sum(input_dim))))
+        Xbdry[:,:input_dim[0]] = self.bdry.make_points(nb)
+
+        # Include time
+        if input_dim[1]:
+            # Fill in time values
+            t = input_dim[0]
+            Xbdry[:,t] = (input_range[t][1] - input_range[t][0])*torch.rand( (nb) ) + input_range[t][0]
+        # Include hyperparameters
+        if input_dim[2]:
+            # Fill in hyperparameter values
+            # TODO Do exponential scaling
+            hstart = input_dim[0] + input_dim[1]
+            hend = sum(input_dim)
+            for jj in range(hstart, hend):
+                Xbdry[:,jj] = (input_range[jj][1] - input_range[jj][0])*torch.rand( (nb) ) + input_range[jj][0]
+
+        return Xbdry
+
     def __len__(self):
         return self.num_pts
     
     def __getitem__(self, index):
-        return self.location[index,:], self.value[index,:], index    
+        return self.location[index,:], index    
     
 class ICPoints(torch.utils.data.Dataset):
     ###
@@ -280,14 +500,43 @@ class ICPoints(torch.utils.data.Dataset):
     ### Evaluate the initial condition at these points
     ###
 
-    def __init__(self, num_init, input_dim, input_range, domain, init_con):
+    def __init__(self, num_init, domain, input_dim, input_range, dev):
         
-        Xinit = generate_initial_points(num_init, input_dim, input_range, domain)
+        Xinit = self.generate_points(num_init, input_dim, input_range, domain).to(dev)
         
         self.location = Xinit
         self.num_pts = num_init
-        self.value = init_con(Xinit)
-        
+
+    def generate_points(num, input_dim, input_range, domain):
+        ### Generate points inside the domain
+
+        X = torch.zeros( ( num, int(np.sum(input_dim)) ) )
+
+        for ii in range(input_dim[0]):
+            X[:,ii] = (input_range[ii][1] - input_range[ii][0])*torch.rand( (num) ) + input_range[ii][0]
+
+        outside = torch.zeros( X.size(0), dtype=torch.bool)
+        for wall in domain.inside:
+            outside += wall.distance(X) < 0
+
+        if any(outside):
+            X[outside,:] = generate_interior_points(torch.sum(outside), input_dim, input_range, domain)
+            
+        if input_dim[1]:
+            # Zero out time
+            t = input_dim[0]
+            X[:,t] = torch.zeros((num))
+
+        if input_dim[2]:
+            # Fill in hyperparameter values
+            # TODO Do exponential scaling
+            hstart = input_dim[0] + input_dim[1]
+            hend = sum(input_dim)
+            for jj in range(hstart, hend):
+                X[:,jj] = (input_range[jj][1] - input_range[jj][0])*torch.rand( (num) ) + input_range[jj][0]
+
+        return X
+
     def __len__(self):
         ### How many data points are there?
         return self.num_pts
@@ -295,47 +544,9 @@ class ICPoints(torch.utils.data.Dataset):
     def __getitem__(self, index):
         ### Gets one sample of data
         ### 
-        return self.location[index,:], self.value[index,:], index
+        return self.location[index,:], index
 
-class InletOutletPoints(torch.utils.data.Dataset):
-    ### At inlets/outlets
-    ### Pressure specified & velocity x (normal vector to inletoutlet) specified
-    ### or
-    ### Gradient of pressure & velocity x (normal vector to inletout) specified
-    def __init__(self, num, domain, input_dim, input_range):
-        
-        Xbdry, Ubdry = generate_boundary_points(num, input_dim, input_range, domain.inletoutlet)
-        
-        self.location = Xbdry
-        self.num_pts = num
-        self.value = Ubdry
-        
-    def __len__(self):
-        return self.num_pts
-    
-    def __getitem__(self, index):
-        return self.location[index,:], self.value[index,:], index    
-
-class SolidWallPoints(torch.utils.data.Dataset):
-    ### Solid walls require a different number of points
-    ###   It seems easier to separate these d dimensional boundary from the (d-1) dimensional boundary
-    ### Do not need to check for exits on them
-    ###   Problem should be setup so that there is a BCpoints class for the edge
-
-    def __init__(self, num, domain, input_dim, input_range):
-        
-        Xbdry, Ubdry = generate_boundary_points(num, input_dim, input_range, domain.solid)
-        
-        self.location = Xbdry
-        self.num_pts = num
-        self.value = Ubdry
-        
-    def __len__(self):
-        return self.num_pts
-    
-    def __getitem__(self, index):
-        return self.location[index,:], self.value[index,:], index    
-
+### TODO
 class MeshPoints(torch.utils.data.Dataset):
     # Can only do 1 meshgrid
     # x_interval and y_interval has to be the same length
@@ -360,6 +571,9 @@ class MeshPoints(torch.utils.data.Dataset):
         self.num_pts = X.size(0)
         self.value =  U
     
+    def generate_points(self):
+        pass
+
     def solveU(self, b):
         U = torch.linalg.solve(self.A, b)
         return U
@@ -369,130 +583,3 @@ class MeshPoints(torch.utils.data.Dataset):
     
     def __getitem__(self, index):
         return self.location[index,:], self.value[index,:], index
-
-### Number of points along boundary
-###   based on Mean Minimum Distance
-def num_points_wall(N, l, V, d, d0):
-
-    Nw = int( 4*torch.round( (l/V)**(d0/2) * N**(d0/d) ).detach().numpy() + 1 )
-
-    return Nw
-
-### Calculate how many points to make on each boundary type from number of interior points (num)
-def numBCpoints(num, input_dim, domain, bdry):
-
-    # TODO 2)
-    dim = input_dim[0]
-
-    wall_total_measure = 0
-    
-    for wall in bdry:
-        wall_total_measure += wall.measure
-        wall_dim = wall.dim
-    num_bc = num_points_wall(num, wall_total_measure, domain.volume, dim, wall_dim)
-
-    return num_bc
-
-def numICpoints(num, input_dim):
-    ### TODO: Scale by (l/V)^(d/2)
-    ###        l = space measure
-    ###        V = space measure * time
-    ###        d = input_dim[0]
-
-    num_ic = int( num**( input_dim[0]/(input_dim[0] + input_dim[1]) ) )
-
-    return num_ic
-
-###
-### Functions to generate points
-### 
-
-def generate_interior_points(num, input_dim, input_range, domain, within_domain):
-    ### Generate points inside the domain
-
-    X = torch.zeros( ( num, int(np.sum(input_dim)) ) )
-
-    for ii in range(input_dim[0]):
-        X[:,ii] = (input_range[ii][1] - input_range[ii][0])*torch.rand( (num) ) + input_range[ii][0]
-
-    outside = torch.zeros( X.size(0), dtype=torch.bool)
-    for wall in within_domain:
-        outside += wall.distance(X) < 0
-
-    if any(outside):
-        X[outside,:] = generate_interior_points(torch.sum(outside), input_dim, input_range, domain, within_domain)
-        
-    if input_dim[1]:
-        # Fill in time values
-        t = input_dim[0]
-        X[:,t] = (input_range[t][1] - input_range[t][0])*torch.rand( (num) ) + input_range[t][0]
-
-    if input_dim[2]:
-        # Fill in hyperparameter values
-        # TODO Do exponential scaling
-        hstart = input_dim[0] + input_dim[1]
-        hend = sum(input_dim)
-        for jj in range(hstart, hend):
-            X[:,jj] = (input_range[jj][1] - input_range[jj][0])*torch.rand( (num) ) + input_range[jj][0]
-
-    return X
-
-def generate_boundary_points(num, input_dim, input_range, bdry):
-
-    # num = number of points needed along boundary
-    num_walls = len(bdry)
-
-    points_per_wall = []
-    utrue_per_wall = []
-
-    # TODO 4)
-    ### How many points to make on each wall
-    for ii in range(num_walls):
-        wall = bdry[ii]
-        num_points_wall = int(num*np.maximum( wall.measure, 1.0))
-        Xwall = torch.zeros( ( num_points_wall, int(np.sum(input_dim))) )
-        Xwall[:,:input_dim[0]] = wall.make_points(num_points_wall)
-
-        # Include time
-        if input_dim[1]:
-            # Fill in time values
-            t = input_dim[0]
-            Xwall[:,t] = (input_range[t][1] - input_range[t][0])*torch.rand( (num_points_wall) ) + input_range[t][0]
-        # Include hyperparameters
-        if input_dim[2]:
-            # Fill in hyperparameter values
-            # TODO Do exponential scaling
-            hstart = input_dim[0] + input_dim[1]
-            hend = sum(input_dim)
-            for jj in range(hstart, hend):
-                Xwall[:,jj] = (input_range[jj][1] - input_range[jj][0])*torch.rand( (num_points_wall) ) + input_range[jj][0]
-
-        # Evaluate boundary condition
-        Uwall = wall.bc(Xwall)
-
-        points_per_wall.append( Xwall )
-        utrue_per_wall.append( Uwall )
-
-    Xbdry = torch.cat( points_per_wall, dim=0)
-    Ubdry = torch.cat( utrue_per_wall, dim=0)
-
-    # Sample from above boundary points
-    indices = torch.multinomial( torch.arange( Xbdry.size(0), dtype=torch.float ), num)
-    
-    Xbdry = Xbdry[indices,:]
-    Ubdry = Ubdry[indices,:]
-    
-    return Xbdry, Ubdry
-
-def generate_initial_points(num, input_dim, input_range, domain):
-    ### Generate points for initial condition
-
-    X = generate_interior_points(num, input_dim, input_range, domain)
-
-    # Zero out time values
-    t = input_dim[0]
-    X[:,t] = torch.zeros( (num) )
-
-    return X
-
-
