@@ -63,13 +63,10 @@ def define_problem_parameters(parameters, solver_parameters):
                                          param.solid_walls, 
                                          param.inlet_outlet, 
                                          param.list_of_periodic_ends, 
-                                         param.mesh]}
-
-    if param.collect_error:
-        problem_parameters['error'] = {'num_error': param.num_error,
-                                       'true_fun': param.true_fun}
-    else:
-        problem_parameters['error'] = {'num_error': 0}
+                                         param.mesh],
+                          'error': {'collect_error': param.collect_error,
+                                       'num_error': param.num_error,
+                                       'true_fun': param.true_fun}}
 
     if param.t_dim:
         problem_parameters['IC'] = {param.init_con}
@@ -196,35 +193,44 @@ def solvePDE(parameters='', **solver):
     # Create the training points
     Points = create.thePoints(num, Domain, model, problem_parameters, solver_parameters, dev)
 
-    # Collect losses
-    # collect_losses[:, :, 0] = L2 squared loss
-    # collect_losses[:, :, 1] = Linf squared loss
-    collect_losses = np.ones((trainingsteps, Points.numtype, 2))
+    # Squared losses
+    # squaredlosses[:, :, 0] = L2 squared loss
+    # squaredlosses[:, :, 1] = Linf squared loss
+    squaredlosses = np.ones((trainingsteps, Points.numtype, 2))
 
     # TODO Collect errors
-    collect_error = False
+    collect_error = problem_parameters['error']['collect_error']
     if collect_error:
-        ErrorPoints = create.ErrorPoints(num, Domain)
+        squarederrors = np.ones((trainingsteps+1, Points.numtype, 2))
+        ErrorPoints = create.forError(problem_parameters['error']['num_error'],
+                                      Domain,
+                                      problem_parameters,
+                                      dev)
+        squarederrors[0,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
 
     # Train once
-    collect_losses[0,:,:] = Points.TrainL2LinfLoss(model, dev, numbatch, collect_losses[0,:,:])
+    squaredlosses[0,:,:] = Points.TrainL2LinfLoss(model, dev, numbatch, squaredlosses[0,:,:])
 
-    print('No errors in first epoch, training will continue')
-    
+    if collect_error:
+        squarederrors[1,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
+
     # Continue training
     start_time = time.time()
     for step in range(1,trainingsteps):
         
         do_resample = step % resample_every == 0
-        collect_losses[step,:,:] = Points.TrainL2LinfLoss(model, dev, numbatch, collect_losses[step-1,:,:], importance_sampling)
+        squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
         
-        # If points walk
+        if collect_error:
+            squarederrors[step+1,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
+
+        # TODO
         if walk:
             Points.toTrain[0].location = stochastic.walk( Points.toTrain[0].location, num, model, 
                                                         problem_parameters['input_dim'], 
                                                         problem_parameters['input_range'],
-                                                        **problem_parameters['var_train'])
-
+                                                        problem_parameters['var_train'])
+        # dt, num_ghost, tol
         # Resample points
         if do_resample:
             Points.ResamplePoints(Domain, problem_parameters)
@@ -232,7 +238,7 @@ def solvePDE(parameters='', **solver):
         # Print Progress
         if step % print_every == 0:
             current_time = time.time() - start_time
-            print('step = {0}/{1}, Elapsed Time:{3:2.0f} min, Time to Go:{3:2.0f} min'.format(step, trainingsteps, current_time, current_time*(trainingsteps - step)/step))
+            print('step = {0} of {1}, Elapsed Time:{3:2.0f} min, Time to Go:{3:2.0f} min'.format(step, trainingsteps, current_time, current_time*(trainingsteps - step)/step))
     
 
     # Organize and export losses and errors
@@ -241,8 +247,11 @@ def solvePDE(parameters='', **solver):
     
     # Save losses and errors
     with open('experiments/' + solver_parameters['savemodel'] + '_losses.pickle', 'wb' ) as handle:
-        pickle.dump(collect_losses, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    
+        pickle.dump(squaredlosses, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    if collect_error:
+        with open('experiments/' + solver_parameters['savemodel'] + '_errors.pickle', 'wb' ) as handle:
+            pickle.dump(squaredlosses, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     # Save solver parameters
     with open('experiments/' + solver_parameters['savemodel'] + '_parameters.pickle', 'wb') as handle:
         pickle.dump(solver_parameters, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -252,7 +261,7 @@ def solvePDE(parameters='', **solver):
     
     print('Done')
 
-    return model, collect_losses
+    return model, squaredlosses
 
 
 if __name__ == "__main__":

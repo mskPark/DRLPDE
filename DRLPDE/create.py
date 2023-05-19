@@ -276,11 +276,13 @@ class thePoints:
         # How many points
         self.numtype = int(len(self.toTrain))
 
-    def TrainL2LinfLoss(self, model, dev, numbatch, collect_losses, importance_sampling=False):
+    def TrainL2LinfLoss(self, model, dev, numbatch, squaredlosses, importance_sampling=False):
 
         # dev, numbatch
         # target( X, model, volume, var_train) 
         # max_loss, importance sampling
+
+        losses = np.zeros( (self.numtype,2) )
 
         for ii in range(self.numtype):
             # Organize into batch
@@ -290,8 +292,6 @@ class thePoints:
             # L2 and Linf losses
             L2loss = torch.tensor(0.0, device=dev)
             Linfloss = torch.tensor( 0.0, device=dev)
-
-            previous_max = collect_losses[ii,1]
 
             # TODO (Maybe) Test Batch Gradient Descent
             self.L2optimizers[ii].zero_grad()
@@ -307,7 +307,8 @@ class thePoints:
                 
                 # Resample any indices that require it
                 if importance_sampling:
-                    self.reject[ii] = find_resample(X, index, loss, self.reject[ii], previous_max)
+                    previous_max = np.sqrt(squaredlosses[ii,1])
+                    self.reject[ii] = find_resample(X, index, torch.sqrt(loss.data), self.reject[ii], previous_max)
 
                 # TODO Integral Scaling
                 L2loss_batch = self.integrate[ii](X, numpts, loss)
@@ -327,9 +328,9 @@ class thePoints:
             # Step for Linf optimization
             self.Linfoptimizers[ii].step()
 
-            collect_losses[ii] = [L2loss.data.cpu().numpy(), Linfloss.data.cpu().numpy()]
+            losses[ii] = [L2loss.data.cpu().numpy(), Linfloss.data.cpu().numpy()]
 
-        return collect_losses
+        return losses
 
     def ResamplePoints(self, domain, problem_parameters):
         input_dim = problem_parameters['input_dim']
@@ -361,54 +362,86 @@ def Inletoutlet_target(X, model, true):
 
     return target
 
-def find_resample(X, index, loss, max_loss):
+def find_resample(X, index, loss, resample_index, max):
     ### Rejection sampling ###
     # generate uniform( max_loss )
     # Compare, if loss(x) < uniform
     # Then resample
 
-    check_sample = max_loss*torch.rand(X.size(0), device=X.device)
+    check_sample = max*loss*torch.rand(X.size(0), device=X.device)
 
     resample_index = torch.cat( (resample_index, index[loss[:,0] < check_sample]), dim=0)
 
     return resample_index
 
-
 # TODO
-class ErrorPoints():
+class forError():
 
-    def CalculateError(Batch, numpts, volume, model, true_fun, dev):
-        # Batch: X, index
+    def __init__(self, num, domain, problem_parameters, dev):
+        # Organize variables
+        input_dim = problem_parameters['input_dim']
+        input_range = problem_parameters['input_range']
+        unsteady = bool(input_dim[1])
 
-        # Output: Total L2 loss, Linfloss
+        self.true = problem_parameters['error']['true_fun']
 
-        # Indices to resample
-        SE = torch.tensor(0.0, device=dev)
-        Linferror = torch.tensor(0.0, device=dev)
-        SVar = torch.tensor(0.0, device=dev)
+         # Interior Points
+        self.Points = [InteriorPoints(num, domain, input_dim, input_range, dev)]
+        self.integrate = [domain.integrate]
 
-        # Do in batches
-        for X, index in Batch:
-            #X.to(dev).requires_grad_(True)
+        for bdry in domain.wall + domain.solid:
+            nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0], bdry.dim)
+            self.Points.append(BCPoints(nb, domain, bdry, input_dim, input_range, dev))
+            self.integrate.append( bdry.integrate )
 
-            Y = model(X.to(dev).requires_grad_(True))
-            Ytrue = true_fun(X.to(dev).requires_grad_(True))
-            
-            batch_error = CalculateSquaredError(Y.detach(), Ytrue.detach())
-            batch_var = batch_error**2
+        # TODO domain.inletoutlet
+        for inletoutlet in domain.inletoutlet:
+            nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0] + input_dim[1], bdry.dim)
+            self.Points.append(BCPoints(nb, inletoutlet, input_dim, input_range))
+        # TODO mesh
+        for mesh in domain.mesh:
+            self.Points.append(MeshPoints(num_mesh, mesh))
+        # TODO Unsteady problem
+        if unsteady:
+            self.Points.append()
 
-            SE += torch.sum(batch_error)
-            Linferror = torch.max( Linferror, torch.sqrt( torch.max(batch_error) ))
+        # How many points
+        self.numtype = int(len(self.Points))
 
-            SVar += torch.sum(batch_var)
+    def CalculateError(self, model, dev, numbatch):
+        # Output: Total L2 error, Linf error
 
-        L2error = volume*SE.detach()/numpts
+        squarederrors = np.zeros( (self.numtype,2) )
 
-        # Standard error TODO
-        # StandardError = torch.sqrt( (Domain.volume**2 SVar/numpts/(numpts-1) - Domain.volume * SE**2/( numpts-1 ) )
+        for ii in range(self.numtype):
+            # Organize into batch
+            numpts = self.Points[ii].__len__()
+            Batch = torch.utils.data.DataLoader(self.Points[ii], batch_size=numbatch, shuffle=True)
+
+            L2error = torch.tensor(0.0, device=dev)
+            Linferror = torch.tensor(0.0, device=dev)
+            V = torch.tensor(0.0, device=dev)
+
+            # Do in batches
+            for X, index in Batch:
+
+                Y = model(X.requires_grad_())
+                Ytrue = self.true(X.requires_grad_())
+                
+                batch_error = SSE(Y.detach(), Ytrue.detach())
+                batch_var = batch_error**2
+
+                L2error += self.integrate[ii](X, numpts, batch_error) 
+                Linferror = torch.max( Linferror, torch.max(batch_error) )
+
+                V += self.integrate[ii](X, numpts, batch_var) 
+
+            squarederrors[ii,:] = [L2error.data.cpu().numpy(), Linferror.data.cpu().numpy()]
+
+        # TODO Give confidence bars using standard error
+        # StandardError = torch.sqrt( (Domain.volume**2 V/numpts/(numpts-1) - Domain.volume * L2error**2/( numpts-1 ) )
         
-        return L2error, Linferror
-    pass
+        return squarederrors
 
 ### DataLoader classes for different types of points
 
