@@ -48,9 +48,10 @@ class circle:
 
         return distance
     
-    def plot(self, num_bdry):
-        pass
-
+    def integrate(self, X, num, F):
+        integral = self.measure*torch.sum(F)/num
+        return integral
+        
 class ring:
     ### Class structure for a circle boundary, the inside being the domain
     
@@ -79,8 +80,9 @@ class ring:
 
         return distance
     
-    def plot(self):
-        pass
+    def integrate(self, X, num, F):
+        integral = self.measure*torch.sum(F)/num
+        return integral
        
 class line:
     ### Class structure for a line boundary
@@ -108,28 +110,26 @@ class line:
         
         return distance
     
-    def plot_bdry(self, num_bdry):
-        Xplot = ( self.endpoints[1] - self.endpoints[0] )*torch.linspace(0, 1, num_bdry)[:,None] + self.endpoints[0]
-        
-        return Xplot
+    def integrate(self, X, num, F):
+        integral = self.measure*torch.sum(F)/num
+        return integral
 
 class polar:
 
     ### Class structure for a polar curve, the inside being the domain
-    def __init__(self, polar_eq, bc):
+    def __init__(self, r, dr, bc):
         ### Centre and Radius
-        self.polar_eq = polar_eq
-
+        self.polar = r
+        self.dr = dr
         self.dim = 1
         self.bc = bc
 
-        ### TODO make general
-        self.measure = 75.4194
-            
+        self.measure = self.calculatelength()
+
     def make_points(self, num):
         
         theta = 2*math.pi*torch.rand(num)
-        r = self.polar_eq(theta)
+        r = self.polar(theta)
 
         Xwall = torch.stack((r*torch.cos(theta),
                              r*torch.sin(theta)),dim=1 )
@@ -143,13 +143,24 @@ class polar:
 
         theta = torch.atan2( X[:,1], X[:,0])
 
-        distance = self.polar_eq(theta) - torch.norm( X[:,:2] ,dim=1)
+        distance = self.polar(theta) - torch.norm( X[:,:2] ,dim=1)
 
         return distance
-    
-    def integral(self, X):
-        pass
 
+    def calculatelength(self):
+        num = int(1e3)
+        theta = 2*math.pi*torch.rand(num)
+        L = 2*math.pi*torch.mean( torch.sqrt(self.polar(theta)**2 + self.dr(theta)**2))
+        return L
+
+    def integrate(self, X, num, F):
+        theta = torch.atan2( X[:,1], X[:,0])
+        integral = 2*math.pi*torch.sum( F*torch.sqrt(self.polar(theta)**2 + self.dr(theta)**2) )/num
+        return integral
+    
+
+
+# TODO
 class wedge:
     ### Use angles to sample along disk
 
@@ -164,11 +175,13 @@ class wedge:
 
     pass
 
+# TODO
 class type1:
     ### (x, g(x)), range over x
     ### Need to know whether its bottom or top
     pass
 
+# TODO
 class type2:
     ### (h(y), y), range over y
     ### Need to know whether its left or right
@@ -176,6 +189,7 @@ class type2:
 
 # 2-Dimensional Grid
 
+# TODO
 class grid:
     ### Class structure for a box mesh, the inside is the domain
 
@@ -255,6 +269,7 @@ class grid:
 
 # 2-Dimensional Solid Walls
 
+# TODO
 class disk:
     ### Class structure for a 2D solid disk, the domain is outside the disk
     
@@ -291,6 +306,7 @@ class disk:
 
 # 2-Dimensional Walls
 
+# TODO
 class ball:
     ### Class structure for a spherical boundary, the domain being outside the ball
     
@@ -342,6 +358,7 @@ class ball:
         distance = ( torch.norm( X[:,:3] - self.centre.to(X.device),dim=1) - self.radius )
         return distance
 
+# TODO
 class sphere:
     ### Class structure for a 3D hollow sphere boundary, the domain being inside the sphere
     
@@ -391,7 +408,8 @@ class sphere:
 
         distance = ( self.radius - torch.norm( X[:,:3] - self.centre.to(X.device),dim=1) )
         return distance
-    
+
+# TODO
 class cylinder:
     ### Class structure for inside a cylindrical shell
     ### Centre: One end of the cylinder
@@ -443,6 +461,7 @@ class cylinder:
         distance = ( self.radius - torch.norm( X[:,:2] - self.centre[:2].to(X.device),dim=1) )
         return distance
 
+# TODO
 class plane:
     
     ### Class structure for a plane in 3D space
@@ -487,20 +506,24 @@ class plane:
         
         return distance
 
+# TODO
 class funtype1:
     ### (x, y, f(x,y))
     pass
 
+# TODO
 class funtype2:
     ### (x, g(x,z), z)
     pass
 
+# TODO
 class funtype3:
     ### (h(y,z), y, z)
     pass
 
 # 3-Dimensional Solid Walls
 
+# TODO
 class solidball:
     ### Class structure for a 3D solid ball boundary, the domain being outside the ball
     

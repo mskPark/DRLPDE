@@ -83,8 +83,13 @@ def polar_eq(theta):
     r = 0.72*( torch.cos(theta)**5) + 1.2
     return r
 
+def dr(theta):
+    dr = -5*0.72*( torch.cos(theta)**4 )*torch.sin(theta)
+    return dr
+
 polar = {'type':'polar',
          'equation': polar_eq,
+         'derivative': dr,
          'boundary_condition': bdry_con}
 
 box = { 'type': 'box',

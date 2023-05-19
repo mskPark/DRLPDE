@@ -64,8 +64,9 @@ class theDomain:
                                                       bc = specs['boundary_condition'] ))
             
             if specs['type'] == 'polar':
-                self.wall.append( bdry.polar( polar_eq = specs['equation'],
-                                                bc = specs['boundary_condition']))
+                self.wall.append( bdry.polar( r = specs['equation'],
+                                              dr = specs['derivative'],
+                                              bc = specs['boundary_condition']))
 
             ### 3D walls - Note: 2D and 3D  walls not compatible with each other
             if specs['type'] == 'sphere':
@@ -140,7 +141,7 @@ class theDomain:
         self.inside = self.wall + self.inletoutlet + self.mesh
 
         # Calculate volume of domain
-        # Change the number of digits required
+        # Crashes for low tolerance: Need too many points
         self.volume = self.volumeDomain(1e-2)
 
     ### Calculate volume of the domain
@@ -148,8 +149,8 @@ class theDomain:
         # Approximates volume of domain through Monte Carlo Integration
         # Sample from boundingbox B, estimate volume of domain D as
         # vol(D) = vol(B)*(fraction of samples inside D)
-        # standard error = sqrt( vol(B)**2 (1-frac)*frac) /N /(N-1) ) ~~ volB/2N for (1-frac)frac maximized
-        # 
+        # standard error = sqrt( vol(B)**2 (1-frac)*frac)/(N-1) ) ~~ volB/2sqrt(N) for (1-frac)frac maximized
+
         volB = 1.0
 
         # Calculate volume of boundingbox
@@ -157,7 +158,7 @@ class theDomain:
             volB = volB*(self.boundingbox[ii][1] - self.boundingbox[ii][0])
 
         # Calculate number needed to get std within tol (approximate)
-        num = np.int( (volB/std/2) ) 
+        num = np.int( (volB/std/2)**2 ) 
         X = torch.empty( (num, len(self.boundingbox)) )
 
         # Uniformly sample from boundingbox
@@ -172,6 +173,11 @@ class theDomain:
         volD = volB*frac
 
         return volD
+
+    def integrate(self, X, num, F):
+
+        integral = self.volume*torch.sum(F)/num
+        return integral
 
 ### Periodic Boundary class
 class bdry_periodic:
@@ -191,7 +197,6 @@ class bdry_periodic:
 
         self.bot = bot
         self.top = top
-
 
 ### Points
 class thePoints:
@@ -219,11 +224,12 @@ class thePoints:
         self.toTrain = [InteriorPoints(num, domain, input_dim, input_range, dev)]
         self.target = [interior_target]
         self.var = [var_train]
+        self.integrate = [domain.integrate]
         self.L2optimizers = [torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
                                               betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay'])]
         self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
                                               betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay'])]
-        self.resample = [[]]
+        self.reject = [torch.tensor([], dtype=torch.int64)]
 
         # domain.wall + domain.solid
         for bdry in domain.wall + domain.solid:
@@ -232,11 +238,12 @@ class thePoints:
             self.toTrain.append(BCPoints(nb, domain, bdry, input_dim, input_range, dev))
             self.target.append(Dirichlet_target)
             self.var.append({'true':bdry.bc})
+            self.integrate.append( bdry.integrate )
             self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
                                               betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
             self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
                                               betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
-            self.resample.append([])
+            self.reject.append(torch.tensor([], dtype=torch.int64))
 
         # TODO domain.inletoutlet
         for inletoutlet in domain.inletoutlet:
@@ -248,7 +255,7 @@ class thePoints:
                                               betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
             self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
                                               betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
-            self.resample.append([])
+            self.reject.append([])
         # TODO mesh
         for mesh in domain.mesh:
             self.toTrain.append(MeshPoints(num_mesh, mesh))
@@ -256,7 +263,7 @@ class thePoints:
             self.var.append()
             self.L2optimizers.append()
             self.Linfoptimizers.append()
-            self.resample.append([])
+            self.reject.append([])
         # TODO Unsteady problem
         if unsteady:
             self.toTrain.append()
@@ -264,7 +271,7 @@ class thePoints:
             self.var.append()
             self.L2optimizers.append()
             self.Linfoptimizers.append()
-            self.resample.append([])
+            self.reject.append([])
 
         # How many points
         self.numtype = int(len(self.toTrain))
@@ -280,33 +287,31 @@ class thePoints:
             numpts = self.toTrain[ii].__len__()
             Batch = torch.utils.data.DataLoader(self.toTrain[ii], batch_size=numbatch, shuffle=True)
 
-            # Indices to resample
-            resample_index = torch.tensor([], dtype=torch.int64)
-
             # L2 and Linf losses
             L2loss = torch.tensor(0.0, device=dev)
             Linfloss = torch.tensor( 0.0, device=dev)
 
             previous_max = collect_losses[ii,1]
 
-            #max_loss = collect_losses[1]
-
             # TODO (Maybe) Test Batch Gradient Descent
             self.L2optimizers[ii].zero_grad()
             for X, index in Batch:
 
                 loss = self.target[ii](X.requires_grad_(), model, **self.var[ii])
-
-                if importance_sampling:
-                    resample_index = self.find_resample(X, index, loss, resample_index, previous_max)
-
-                L2loss_batch = torch.sum(loss)/numpts
-                L2loss += L2loss_batch
-
+                
                 # Collect the index where the max happens
                 max, jj = torch.max(loss, dim=0)
                 if max > Linfloss:
                     max_index = index[jj]
+                    Linfloss = max
+                
+                # Resample any indices that require it
+                if importance_sampling:
+                    self.reject[ii] = find_resample(X, index, loss, self.reject[ii], previous_max)
+
+                # TODO Integral Scaling
+                L2loss_batch = self.integrate[ii](X, numpts, loss)
+                L2loss += L2loss_batch
 
                 # Collect gradients on L2loss of each batch
                 L2loss_batch.backward()
@@ -326,14 +331,15 @@ class thePoints:
 
         return collect_losses
 
-    # TODO
+    def ResamplePoints(self, domain, problem_parameters):
+        input_dim = problem_parameters['input_dim']
+        input_range = problem_parameters['input_range']
 
-    def ResamplePoints(self):
         for ii in range(self.numtype):
             indices = torch.arange(self.toTrain[ii].__len__())
-            if any(self.resample[ii]):
-                indices = indices[self.resample[ii]]
-            self.toTrain[ii].location[indices,:] = self.toTrain[ii].generate_points(indices.size(0), domain, input_dim, input_range)
+            if any(self.reject[ii]):
+                indices = indices[self.reject[ii]]
+            self.toTrain[ii].location[indices,:] = self.toTrain[ii].generate_points(indices.size(0), input_dim, input_range, domain)
 
 ### Number of points along boundary
 ###   based on Mean Minimum Distance
@@ -355,14 +361,15 @@ def Inletoutlet_target(X, model, true):
 
     return target
 
-def find_resample(X, index, loss, resample_index, max_loss):
+def find_resample(X, index, loss, max_loss):
     ### Rejection sampling ###
     # generate uniform( max_loss )
-    # Compare sample < uniform
+    # Compare, if loss(x) < uniform
     # Then resample
+
     check_sample = max_loss*torch.rand(X.size(0), device=X.device)
 
-    resample_index = torch.cat( (resample_index, index[loss[:,0] < check_sample]))
+    resample_index = torch.cat( (resample_index, index[loss[:,0] < check_sample]), dim=0)
 
     return resample_index
 

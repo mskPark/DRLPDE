@@ -32,17 +32,9 @@ def define_solver_parameters(**solver):
                          'optimizer': {'learningrate': 1e-4,
                                          'beta': (0.9, 0.999),
                                          'weightdecay': 0.0},
-                         'weights':{'interior':1e0,
-                                      'wall':1e0,
-                                      'solid':1e0,
-                                      'inletoutlet':1e0,
-                                      'mesh':1e0,
-                                      'ic':1e0},
                          'resample_every': 1.1,
                          'walk': False,              
                          'importance_sampling': False,
-                         'adaptive_weighting': { 'reweight_every':1.1,
-                                                 'stepsize':1e1},
                          'hybrid': {'num_mesh': 20,
                                     'solvemeshevery': 50}
                            }
@@ -235,9 +227,8 @@ def solvePDE(parameters='', **solver):
 
         # Resample points
         if do_resample:
-            Points.resample()
+            Points.ResamplePoints(Domain, problem_parameters)
 
-        
         # Print Progress
         if step % print_every == 0:
             current_time = time.time() - start_time
