@@ -11,8 +11,8 @@ import DRLPDE.train as train
 import DRLPDE.diagnostics as diagnostics
 import DRLPDE.neuralnets as neuralnets
 
-# TODO: Change the code again
-#       
+### Pytorch default datatype is float32, to change, uncomment the line below
+torch.set_default_dtype(torch.float64)
 
 def define_solver_parameters(problem, **solver):
 
