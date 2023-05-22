@@ -10,7 +10,9 @@ import DRLPDE.neuralnets as neuralnets
 import DRLPDE.stochastic as stochastic
 
 ### Pytorch default datatype is float32, to change, uncomment the line below
-# torch.set_default_dtype(torch.float64)
+
+#torch.set_default_dtype(torch.float32)
+torch.set_default_dtype(torch.float64)
 
 def define_solver_parameters(**solver):
 
@@ -23,15 +25,13 @@ def define_solver_parameters(**solver):
                          'numbatch': 2**12,
                          'trainingsteps': 5e3,
                          'neuralnetwork':'FeedForward',
-                         'nn_size': {'depth':4,
-                                       'width':64},
+                         'nn_size': {'depth':2,
+                                       'width':2048},
                          'method': {'type':'stochastic',
                                       'dt':1e-4,
                                       'num_ghost':128,
                                       'tol': 1e-6},
-                         'optimizer': {'learningrate': 1e-4,
-                                         'beta': (0.9, 0.999),
-                                         'weightdecay': 0.0},
+                         'learningrate': 1e-4,
                          'resample_every': 1.1,
                          'walk': False,              
                          'importance_sampling': False,
@@ -238,7 +238,7 @@ def solvePDE(parameters='', **solver):
         # Print Progress
         if step % print_every == 0:
             current_time = time.time() - start_time
-            print('step = {0} of {1}, Elapsed Time:{3:2.0f} min, Time to Go:{3:2.0f} min'.format(step, trainingsteps, current_time, current_time*(trainingsteps - step)/step))
+            print('step = {0} of {1}, Elapsed Time:{2:2.0f} min, Time to Go:{3:2.0f} min'.format(step, trainingsteps, current_time/60, current_time*(trainingsteps - step)/step/60))
     
 
     # Organize and export losses and errors

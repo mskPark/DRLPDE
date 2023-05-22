@@ -219,16 +219,17 @@ class thePoints:
         unsteady = bool(input_dim[1])
         var_train = problem_parameters['var_train']
         interior_target = problem_parameters['InteriorTarget']
+        learningrate = solver_parameters['learningrate']
 
         # Interior Points
         self.toTrain = [InteriorPoints(num, domain, input_dim, input_range, dev)]
         self.target = [interior_target]
         self.var = [var_train]
         self.integrate = [domain.integrate]
-        self.L2optimizers = [torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
-                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay'])]
-        self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
-                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay'])]
+        self.L2optimizers = [torch.optim.Adam(model.parameters(), lr=learningrate)]
+        self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=0)]
+        #self.scheduler = [torch.optim.lr_scheduler.MultiStepLR(self.L2optimizers[0], milestones=[500], gamma=0.1)]
+        
         self.reject = [torch.tensor([], dtype=torch.int64)]
 
         # domain.wall + domain.solid
@@ -239,10 +240,8 @@ class thePoints:
             self.target.append(Dirichlet_target)
             self.var.append({'true':bdry.bc})
             self.integrate.append( bdry.integrate )
-            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
-                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
-            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
-                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
+            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=1e-4))
+            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=0))
             self.reject.append(torch.tensor([], dtype=torch.int64))
 
         # TODO domain.inletoutlet
@@ -389,6 +388,7 @@ class forError():
         self.Points = [InteriorPoints(num, domain, input_dim, input_range, dev)]
         self.integrate = [domain.integrate]
 
+        # domain.wall + domain.solid
         for bdry in domain.wall + domain.solid:
             nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0], bdry.dim)
             self.Points.append(BCPoints(nb, domain, bdry, input_dim, input_range, dev))

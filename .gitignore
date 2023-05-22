@@ -2,6 +2,7 @@
 */.ipynb_checkpoints/*
 __pycache__
 plotting/*
+experiments/*
 oldstuff
 TODO.md
 
