@@ -16,9 +16,9 @@ SquaredError = torch.nn.MSELoss(reduction='none')
 
 ### Viscous Burgers
 ###    Only compatible with Dirichlet BC
-###    Use Incompressible NN to solve fluid flow
+###    Use Incompressible NN to solve, fluid flow
 
-def unsteadyViscousBurgers(X, model, diffusion, forcing, x_dim, domain, dt, num_ghost, tol, **var_train):
+def unsteadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **var_train):
     
     ### X:     (x,y,z,t,hyper)
     ### model: (u,v,w) = curl(A)
@@ -44,15 +44,15 @@ def unsteadyViscousBurgers(X, model, diffusion, forcing, x_dim, domain, dt, num_
     Unew = model(Xnew)
 
     # Calculate exits and re-evaluate
-    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.boundary, x_dim, tol)
-    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, domain.initial_con, x_dim, tol)
+    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
+    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, tol)
 
     # Calculate Loss = Residual Squared Error
     Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0), Uold )
 
     return Loss
 
-def steadyViscousBurgers(X, model, diffusion, forcing, x_dim, domain, dt, num_ghost, tol, **var_train):
+def steadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **var_train):
 
     ### X: (x,y,z,hyper)
     ### model: (u,v,w) = curl(A)
@@ -78,7 +78,7 @@ def steadyViscousBurgers(X, model, diffusion, forcing, x_dim, domain, dt, num_gh
     Unew = model(Xnew)
 
     # Calculate exits and re-evaluate
-    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.boundaries, x_dim, tol)
+    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
     # Calculate Loss = Residual Squared Error
     Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0), Uold )
@@ -89,7 +89,7 @@ def steadyViscousBurgers(X, model, diffusion, forcing, x_dim, domain, dt, num_gh
 ###    Use whenever Inlet/Outlets are used: Pressure condition at the inlet/outlet
 ###    Use Incompressible NN to ensure incompressibility
 
-def unsteadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_ghost, tol, **var_train):
+def unsteadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **var_train):
     
     ### X: (x,y,z,t,hyper)
     ### model: (u,v,w,p) = (curl(A), p)
@@ -123,9 +123,9 @@ def unsteadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_gh
     UPnew = model(Xnew)
 
     # Calculate exits and re-evaluate bc, inletoutlet, ic
-    Xnew, UPnew = exit_bc(X.repeat(num_ghost,1), Xnew, UPnew, domain.boundaries, x_dim, tol)
+    Xnew, UPnew = exit_bc(X.repeat(num_ghost,1), Xnew, UPnew, domain.exitflag, x_dim, tol)
 
-    Xnew, UPnew = exit_ic(X.repeat(num_ghost,1), Xnew, UPnew, initial_con, x_dim, tol)
+    Xnew, UPnew = exit_ic(X.repeat(num_ghost,1), Xnew, UPnew, ic, x_dim, tol)
 
     # Evaluate grad(p) at Xnew
     gradPnew = ad.gradient(UPnew[:,-1], Xnew[:,:x_dim])
@@ -135,7 +135,7 @@ def unsteadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_gh
 
     return Loss
 
-def steadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_ghost, tol, **var_train):
+def steadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **var_train):
     
     ### X: (x,y,z,hyper)
     ### model: (u,v,w,p) = (curl(A), p)
@@ -167,7 +167,7 @@ def steadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_ghos
     UPnew = model(Xnew)
 
     # Calculate exits and re-evaluate
-    Xnew, UPnew = exit_bc(X.repeat(num_ghost,1), Xnew, UPnew, domain.boundaries, x_dim, tol)
+    Xnew, UPnew = exit_bc(X.repeat(num_ghost,1), Xnew, UPnew, domain.exitflag, x_dim, tol)
 
     # Evaluate grad(p) at Xnew
     gradPnew = ad.gradient(UPnew[:,-1], Xnew[:,:x_dim])
@@ -212,7 +212,7 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
     return Loss
 
 ### Heat Equation
-def Heat(X, model, diffusion, forcing, x_dim, domain, initial_con, dt, num_ghost, tol, **var_train):
+def Heat(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **var_train):
     ### X: (x,y,z,hyper)
     ### model: u
 
@@ -238,9 +238,9 @@ def Heat(X, model, diffusion, forcing, x_dim, domain, initial_con, dt, num_ghost
     Unew = model(Xnew)
 
     # Calculate exits and re-evaluate
-    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.boundary, x_dim, tol)
+    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
-    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, domain.initial_con, x_dim, tol)
+    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, tol)
 
     # Make target
     Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0), Uold)
@@ -266,7 +266,7 @@ def steadyElliptic(X, model, mu, x_dim, domain, drift, dt, num_batch, num_ghost,
     Unew = model(Xnew)
 
     # Calculate exits
-    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.boundaries, tol)
+    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, tol)
 
     # Make target
     Target = Unew.detach().reshape(num_ghost, num_batch, x_dim).mean(0) - Uold
@@ -288,7 +288,7 @@ def unsteadyParabolic(X, model, domain, mu, x_dim, dt, num_batch, num_ghost, tol
     Xnew[:,x_dim] = Xnew[:,x_dim] - -dt*torch.ones((num_batch*num_ghost,1), device=X.device)
 
     ### Calculate exits
-    Xnew, outside = exit_bc(X.repeat(num_ghost,1), Xnew, domain.boundaries, tol)
+    Xnew, outside = exit_bc(X.repeat(num_ghost,1), Xnew, domain.exitflag, tol)
 
     ### Calculate periodic boundaries
     if any(domain.periodic_boundaries):

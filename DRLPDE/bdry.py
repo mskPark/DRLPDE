@@ -362,52 +362,42 @@ class ball:
 class sphere:
     ### Class structure for a 3D hollow sphere boundary, the domain being inside the sphere
     
-    def __init__(self, centre, radius, boundary_condition):
+    def __init__(self, centre, radius, bc):
         ### Centre and Radius
         self.centre = torch.tensor( centre )
         self.radius = radius
-        self.bdry_cond = boundary_condition
+        self.bc = bc
+        self.measure = 4.0*math.pi*self.radius**2
+        self.dim = 3
         
-            
-    def make_bdry_pts(self, num_bdry, boundingbox, is_unsteady, other_bdrys):
+    def make_points(self, num):
         ### Spherical coordinates
         ###
         ### x = radius*sin(phi)*cos(theta)
         ### y = radius*sin(phi)*sin(theta)
         ### z = radius*cos(phi)
 
-        theta = 2*math.pi*torch.rand( (num_bdry))
-        phi =  math.pi*torch.rand((num_bdry))
-        
-        if is_unsteady:
-            Xbdry = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
-                                 self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
-                                 self.radius*torch.cos(phi) + self.centre[2]
-                                (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )  
-        else:
-            Xbdry = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
-                                 self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
-                                 self.radius*torch.cos(phi) + self.centre[2]), dim=1 )  
-        
-        ### Check if outside other bdrys
-        ### and remake bdry points
-        outside = torch.zeros(Xbdry.size(0), dtype=torch.bool)
+        theta = 2*math.pi*torch.rand(num)
+        phi = math.pi*torch.rand(num)
 
-        for bdry in other_bdrys:
-            outside += bdry.dist_to_bdry(Xbdry) < 0
+        Xwall = torch.stack((self.radius*torch.sin(phi)*torch.cos(theta) + self.centre[0],
+                                self.radius*torch.sin(phi)*torch.sin(theta) + self.centre[1],
+                                self.radius*torch.cos(phi) + self.centre[2]), dim=1 )  
         
-        if any(outside):
-            Xbdry[outside,:] = self.make_bdry_pts(torch.sum(outside), boundingbox, is_unsteady, other_bdrys)
-        
-        return Xbdry
+        return Xwall
             
-    def dist_to_bdry(self, X):
+    def distance(self, X):
         ### Signed distance to boundary
         ### positive = inside domain
         ### negative = outside domain
 
         distance = ( self.radius - torch.norm( X[:,:3] - self.centre.to(X.device),dim=1) )
         return distance
+    
+    def integrate(self, X, num, F):
+        theta = torch.atan2( X[:,1], X[:,0])[:,None]
+        integral = 2*math.pi**2*self.radius**2*torch.sum( F*torch.sin(theta) )/num
+        return integral
 
 # TODO
 class cylinder:

@@ -32,7 +32,7 @@ else:
     t_range = [ [] ]
 
 # Hyperparameters
-hyper_dim = 2
+hyper_dim = 0
 if hyper_dim:
     hyper_range = [[0.0, 1.0], [1.0, 5.0]]
 else:
@@ -48,7 +48,6 @@ pde_type = 'Stokes'
 # Diffusion coefficient
 def diffusion(X):
     mu = torch.tensor( 1.0 )
-    #mu = X[:,4,None]
     return mu
 
 # Forcing term

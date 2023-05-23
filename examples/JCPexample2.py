@@ -19,20 +19,23 @@ num_error = 2**15
 
 if collect_error:
     def true_fun(X):
+
         Truncate = 20
         roots = bessel.jn_zeros(1,Truncate)
         
+        mu = 1.0
         c = np.zeros(Truncate)
         
         u = torch.stack( ( -X[:,1], X[:,0] ), dim=1)
         
-        r = torch.norm(X, dim=1)
-        th = np.angle( np.complex( X[:,0].detach().cpu().numpy(), X[:,1].detach().cpu().numpy() ) )
+        r = torch.norm(X, dim=1).detach().cpu().numpy()
+        th = torch.angle( torch.complex( X[:,0], X[:,1] ) )
         
         for jj in range(Truncate):
             c[jj] = 2*(-bessel.j0(roots[jj])/roots[jj])/(bessel.jv(2,roots[jj])**2)
-            u[:,0] += v0*c[jj]*torch.sin(th)*torch.tensor(bessel.j1(roots[jj]*r.detach().cpu().numpy()), device=X.device)*torch.exp(-mu*roots[jj]**2*X[:,2])
-            u[:,1] += -v0*c[jj]*torch.cos(th)*torch.tensor(bessel.j1(roots[jj]*r.detach().cpu().numpy()), device=X.device)*torch.exp(-mu*roots[jj]**2*X[:,2])
+
+            u[:,0] += v0*c[jj]*torch.sin(th)*torch.tensor(bessel.j1(roots[jj]*r), device=X.device)*torch.exp(-mu*roots[jj]**2*X[:,2])
+            u[:,1] += -v0*c[jj]*torch.cos(th)*torch.tensor(bessel.j1(roots[jj]*r), device=X.device)*torch.exp(-mu*roots[jj]**2*X[:,2])
                     
         return u
 
@@ -41,7 +44,7 @@ x_dim = 2
 output_dim = 2
 
 # Steady or Unsteady
-t_dim = 0
+t_dim = 1
 if t_dim:
     t_range = [[0.0, 0.25]]
 else:
@@ -60,7 +63,9 @@ else:
 pde_type = 'Stokes'
 
 # Diffusion coefficient
-mu = 1
+def diffusion(X):
+    mu = torch.tensor( 1.0 )
+    return mu
 
 # Forcing term
 def forcing(X):
@@ -71,7 +76,7 @@ def forcing(X):
 # Use pytorch expressions to make boundary and initial conditions 
 
 def bdry_con(X):
-    u = torch.stack( ( -X[:,1], X[:,0] ), dim=1)
+    u = v0*torch.stack( ( -X[:,1], X[:,0] ), dim=1)
     return u
 
 def init_con(X):

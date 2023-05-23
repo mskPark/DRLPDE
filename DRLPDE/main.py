@@ -67,7 +67,7 @@ def define_problem_parameters(parameters, solver_parameters):
                                        'true_fun': param.true_fun}}
 
     if param.t_dim:
-        problem_parameters['IC'] = {param.init_con}
+        problem_parameters['IC'] = param.init_con
 
     ### Method type
     if solver_parameters['method']['type'] == 'autodiff':

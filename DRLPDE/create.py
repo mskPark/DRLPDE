@@ -216,6 +216,8 @@ class thePoints:
         # Organize some variables
         input_dim = problem_parameters['input_dim']
         input_range = problem_parameters['input_range']
+        
+        self.output_dim = problem_parameters['output_dim']
         unsteady = bool(input_dim[1])
         var_train = problem_parameters['var_train']
         interior_target = problem_parameters['InteriorTarget']
@@ -250,9 +252,10 @@ class thePoints:
         # TODO domain.inletoutlet
         for inletoutlet in domain.inletoutlet:
             nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0] + input_dim[1], bdry.dim)
-            self.toTrain.append(BCPoints(nb, inletoutlet, input_dim, input_range))
+            self.toTrain.append(BCPoints(nb, domain, inletoutlet, input_dim, input_range))
             self.target.append(Inletoutlet_target)
             self.var.append(inletoutlet.bc)
+            self.integrate.append()
             self.L2optimizers.append()
             self.Linfoptimizers.append()
             self.reject.append([])
@@ -261,30 +264,31 @@ class thePoints:
             self.toTrain.append(MeshPoints(num_mesh, mesh))
             self.target.append()
             self.var.append()
+            self.integrate.append()
             self.L2optimizers.append()
             self.Linfoptimizers.append()
             self.reject.append([])
-        # TODO Unsteady problem
+
         if unsteady:
-            self.toTrain.append()
-            self.target.append()
-            self.var.append()
-            self.L2optimizers.append()
-            self.Linfoptimizers.append()
-            self.reject.append([])
+            num_ic = num_points_wall(num, domain.volume, domain.volume, input_dim[0] + input_dim[1], input_dim[0])
+            
+            self.toTrain.append(ICPoints(num_ic, domain, input_dim, input_range, dev ))
+            self.target.append(Dirichlet_target)
+            self.var.append({'true':problem_parameters['IC']} )
+            self.integrate.append( domain.integrate)
+            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
+            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
+            self.reject.append(torch.tensor([], dtype=torch.int64))
 
         # How many points
         self.numtype = int(len(self.toTrain))
 
     def TrainL2LinfLoss(self, model, domain, dev, numbatch, squaredlosses, importance_sampling=False):
 
-        # dev, numbatch
-        # target( X, model, volume, var_train) 
-        # max_loss, importance sampling
-
         losses = np.zeros( (self.numtype,2) )
 
         for ii in range(self.numtype):
+
             # Organize into batch
             numpts = self.toTrain[ii].__len__()
             Batch = torch.utils.data.DataLoader(self.toTrain[ii], batch_size=numbatch, shuffle=True)
@@ -293,17 +297,23 @@ class thePoints:
             L2loss = torch.tensor(0.0, device=dev)
             Linfloss = torch.tensor( 0.0, device=dev)
 
-            # TODO (Maybe) Test Batch Gradient Descent
             self.L2optimizers[ii].zero_grad()
             for X, index in Batch:
                 loss = self.target[ii](X.requires_grad_(), model, domain, **self.var[ii])
-                
-                # Collect the index where the max happens
+
+                # Collect the index where the max happens                
                 max, jj = torch.max(loss, dim=0)
+
+                # For vector output:
+                if self.output_dim > 1:
+                    max, kk = torch.max(max, dim=0)
+                    print(jj)
+                    jj = jj[kk,None]
+
                 if max > Linfloss:
                     max_index = index[jj]
                     Linfloss = max
-                
+
                 # Resample any indices that require it
                 if importance_sampling:
                     previous_max = np.sqrt(squaredlosses[ii,1])
@@ -321,7 +331,11 @@ class thePoints:
 
             # Train for Linf optimization
             self.Linfoptimizers[ii].zero_grad()
-            Linfloss = self.target[ii](X[max_index,:].requires_grad_(), model, domain, **self.var[ii])
+
+            if self.output_dim > 1:
+                Linfloss = self.target[ii](X[max_index,:].requires_grad_(), model, domain, **self.var[ii])[0,kk]
+            else:
+                Linfloss = self.target[ii](X[max_index,:].requires_grad_(), model, domain, **self.var[ii])
             Linfloss.backward()
             
             # Step for Linf optimization
@@ -396,14 +410,17 @@ class forError():
 
         # TODO domain.inletoutlet
         for inletoutlet in domain.inletoutlet:
-            nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0] + input_dim[1], bdry.dim)
+            nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0], bdry.dim)
             self.Points.append(BCPoints(nb, inletoutlet, input_dim, input_range))
         # TODO mesh
         for mesh in domain.mesh:
+
             self.Points.append(MeshPoints(num_mesh, mesh))
-        # TODO Unsteady problem
+
         if unsteady:
-            self.Points.append()
+            num_ic = num_points_wall(num, domain.volume, domain.volume, input_dim[0] + input_dim[1], input_dim[0])
+            self.Points.append(ICPoints(num_ic, domain, input_dim, input_range, dev ))
+            self.integrate.append( domain.integrate)
 
         # How many points
         self.numtype = int(len(self.Points))
@@ -429,6 +446,7 @@ class forError():
                 Ytrue = self.true(X.requires_grad_())
                 
                 batch_error = SSE(Y.detach(), Ytrue.detach())
+                
                 batch_var = batch_error**2
 
                 L2error += self.integrate[ii](X, numpts, batch_error) 
@@ -542,12 +560,10 @@ class ICPoints(torch.utils.data.Dataset):
 
     def __init__(self, num_init, domain, input_dim, input_range, dev):
         
-        Xinit = self.generate_points(num_init, input_dim, input_range, domain).to(dev)
-        
-        self.location = Xinit
+        self.location = self.generate_points(num_init, input_dim, input_range, domain).to(dev)
         self.num_pts = num_init
 
-    def generate_points(num, input_dim, input_range, domain):
+    def generate_points(self, num, input_dim, input_range, domain):
         ### Generate points inside the domain
 
         X = torch.zeros( ( num, int(np.sum(input_dim)) ) )
@@ -560,7 +576,7 @@ class ICPoints(torch.utils.data.Dataset):
             outside += wall.distance(X) < 0
 
         if any(outside):
-            X[outside,:] = generate_interior_points(torch.sum(outside), input_dim, input_range, domain)
+            X[outside,:] = self.generate_points(torch.sum(outside), input_dim, input_range, domain)
             
         if input_dim[1]:
             # Zero out time
