@@ -178,9 +178,10 @@ def steadyNavierStokes(X, model, diffusion, forcing, x_dim, domain, dt, num_ghos
     return Loss
 
 ### Laplace Equation
-def Laplace(X, model, diffusion, forcing, x_dim, domain, dt, num_ghost, tol, **var_train):
+def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **var_train):
     ### X: (x,y,z,hyper)
     ### model: u
+
 
     # Xnew = X repeated
     Xnew = X.clone().detach().repeat(num_ghost,1)
@@ -203,7 +204,7 @@ def Laplace(X, model, diffusion, forcing, x_dim, domain, dt, num_ghost, tol, **v
     Unew = model(Xnew)
 
     # Calculate exits and re-evaluate
-    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.boundary, x_dim, tol)
+    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
     # Make target
     Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0), Uold)

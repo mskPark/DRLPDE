@@ -93,7 +93,8 @@ def define_problem_parameters(parameters, solver_parameters):
 
     elif solver_parameters['method']['type'] == 'stochastic':
         import DRLPDE.stochastic as method
-        var_train = {'diffusion': param.diffusion,
+        var_train = {'x_dim': param.x_dim,
+                    'diffusion': param.diffusion,
                     'forcing': param.forcing, 
                     'dt': solver_parameters['method']['dt'],
                     'num_ghost': solver_parameters['method']['num_ghost'], 
@@ -207,7 +208,7 @@ def solvePDE(parameters='', **solver):
         squarederrors[0,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
 
     # Train once
-    squaredlosses[0,:,:] = Points.TrainL2LinfLoss(model, dev, numbatch, squaredlosses[0,:,:])
+    squaredlosses[0,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[0,:,:])
 
     if collect_error:
         squarederrors[1,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
@@ -217,7 +218,7 @@ def solvePDE(parameters='', **solver):
     for step in range(1,trainingsteps):
         
         do_resample = step % resample_every == 0
-        squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
+        squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
         
         if collect_error:
             squarederrors[step+1,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)

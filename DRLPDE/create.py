@@ -276,7 +276,7 @@ class thePoints:
         # How many points
         self.numtype = int(len(self.toTrain))
 
-    def TrainL2LinfLoss(self, model, dev, numbatch, squaredlosses, importance_sampling=False):
+    def TrainL2LinfLoss(self, model, domain, dev, numbatch, squaredlosses, importance_sampling=False):
 
         # dev, numbatch
         # target( X, model, volume, var_train) 
@@ -296,8 +296,7 @@ class thePoints:
             # TODO (Maybe) Test Batch Gradient Descent
             self.L2optimizers[ii].zero_grad()
             for X, index in Batch:
-
-                loss = self.target[ii](X.requires_grad_(), model, **self.var[ii])
+                loss = self.target[ii](X.requires_grad_(), model, domain, **self.var[ii])
                 
                 # Collect the index where the max happens
                 max, jj = torch.max(loss, dim=0)
@@ -322,7 +321,7 @@ class thePoints:
 
             # Train for Linf optimization
             self.Linfoptimizers[ii].zero_grad()
-            Linfloss = self.target[ii](X[max_index,:].requires_grad_(), model, **self.var[ii])
+            Linfloss = self.target[ii](X[max_index,:].requires_grad_(), model, domain, **self.var[ii])
             Linfloss.backward()
             
             # Step for Linf optimization
@@ -348,7 +347,7 @@ def num_points_wall(N, l, V, d, d0):
     Nw = int( 4*torch.round( (l/V)**(d0/2) * N**(d0/d) ).detach().numpy() + 1 )
     return Nw
 
-def Dirichlet_target(X, model, true, **var):
+def Dirichlet_target(X, model, domain, true, **var):
     target = SSE(model(X), true(X).detach())
 
     return target
