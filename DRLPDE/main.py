@@ -26,7 +26,7 @@ def define_solver_parameters(**solver):
                          'trainingsteps': 5e3,
                          'neuralnetwork':'FeedForward',
                          'nn_size': {'depth':2,
-                                       'width':2048},
+                                       'width':256},
                          'method': {'type':'stochastic',
                                       'dt':1e-4,
                                       'num_ghost':128,
@@ -34,9 +34,7 @@ def define_solver_parameters(**solver):
                          'learningrate': 1e-4,
                          'resample_every': 1.1,
                          'walk': False,              
-                         'importance_sampling': False,
-                         'hybrid': {'num_mesh': 20,
-                                    'solvemeshevery': 50}
+                         'importance_sampling': False
                            }
 
     ### Any new parameters override the default parameters

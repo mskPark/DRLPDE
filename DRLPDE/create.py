@@ -221,13 +221,16 @@ class thePoints:
         interior_target = problem_parameters['InteriorTarget']
         learningrate = solver_parameters['learningrate']
 
+        bdry_lr = 1e-5
+        Linf_lr = 0
+
         # Interior Points
         self.toTrain = [InteriorPoints(num, domain, input_dim, input_range, dev)]
         self.target = [interior_target]
         self.var = [var_train]
         self.integrate = [domain.integrate]
         self.L2optimizers = [torch.optim.Adam(model.parameters(), lr=learningrate)]
-        self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=0)]
+        self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=Linf_lr)]
         #self.scheduler = [torch.optim.lr_scheduler.MultiStepLR(self.L2optimizers[0], milestones=[500], gamma=0.1)]
         
         self.reject = [torch.tensor([], dtype=torch.int64)]
@@ -240,8 +243,8 @@ class thePoints:
             self.target.append(Dirichlet_target)
             self.var.append({'true':bdry.bc})
             self.integrate.append( bdry.integrate )
-            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=1e-4))
-            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=0))
+            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
+            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
             self.reject.append(torch.tensor([], dtype=torch.int64))
 
         # TODO domain.inletoutlet
@@ -250,10 +253,8 @@ class thePoints:
             self.toTrain.append(BCPoints(nb, inletoutlet, input_dim, input_range))
             self.target.append(Inletoutlet_target)
             self.var.append(inletoutlet.bc)
-            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
-                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
-            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=solver_parameters['optimizer']['learningrate'], 
-                                              betas=solver_parameters['optimizer']['beta'], weight_decay=solver_parameters['optimizer']['weightdecay']))
+            self.L2optimizers.append()
+            self.Linfoptimizers.append()
             self.reject.append([])
         # TODO mesh
         for mesh in domain.mesh:

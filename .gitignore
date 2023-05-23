@@ -3,6 +3,7 @@
 __pycache__
 plotting/*
 experiments/*
+savedmodels/*
 oldstuff
 TODO.md
 
