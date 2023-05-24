@@ -8,6 +8,8 @@ import torch
 import math
 import numpy as np
 
+collect_error = False
+
 # Physical Dimension
 x_dim = 2
 output_dim = 2
@@ -62,30 +64,30 @@ def bdry_con_lid(X):
 
 #################  Make the domain  #######################
 
-boundingbox = [ [-1.0,1], [-1,1] ]
+boundingbox = [ [-1.0, 1.0], [-1.0, 1.0] ]
 
 wall_left = {'type':'line',
-             'point': [-1,0],
-             'normal': [1,0],
-             'endpoints': [ [-1,-1], [-1,1] ],
+             'point': [-1.0, 0.0],
+             'normal': [1.0, 0.0],
+             'endpoints': [ [-1.0, -1.0], [-1.0, 1.0] ],
              'boundary_condition': bdry_con_wall }
 
 lid_top = { 'type':'line',
-             'point': [0,1],
-             'normal': [0,-1],
-             'endpoints': [ [-1,1],   [1,1]  ],
+             'point': [0.0, 1.0],
+             'normal': [0.0, -1.0],
+             'endpoints': [ [-1.0, 1.0], [1.0, 1.0]  ],
              'boundary_condition': bdry_con_lid }
 
 wall_right= {'type':'line',
-             'point': [1, 0],
-             'normal':  [-1,0],
-             'endpoints':  [ [1,-1],   [1,1]  ],
+             'point': [1.0, 0.0],
+             'normal':  [-1.0, 0.0],
+             'endpoints':  [ [1.0, -1.0], [1.0, 1.0]  ],
              'boundary_condition': bdry_con_wall }
 
 wall_bot = {'type':'line',
-             'point': [0,-1],
-             'normal': [0,1],
-             'endpoints': [ [-1,-1], [1,-1] ],
+             'point': [0.0, -1.0],
+             'normal': [0.0, 1.0],
+             'endpoints': [ [-1.0, -1.0], [1.0,-1.0] ],
              'boundary_condition': bdry_con_wall }
 
 list_of_walls = [wall_left, wall_right, wall_bot, lid_top]

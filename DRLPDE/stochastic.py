@@ -29,8 +29,11 @@ def unsteadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_
     Uold = model(X)
 
     # Diffusion coefficient
-    mu = diffusion(X).detach().repeat(num_ghost,1)
+    mu = diffusion(X)
     
+    if mu.size():
+        mu = mu.repeat(num_ghost,1)
+
     # Move walkers
     # TODO: Implement higher order SDE simulation
     Xnew[:,:x_dim] = Xnew[:,:x_dim] - dt*Uold.repeat(num_ghost,1) + torch.sqrt(2*dt*mu)*torch.randn((Xnew.size(0), x_dim), device=X.device, requires_grad=True)
@@ -38,7 +41,7 @@ def unsteadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_
 
     # Periodic boundaries
     if any(domain.periodic):
-        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
 
     # Evaluate at Xnew
     Unew = model(Xnew)
@@ -64,7 +67,10 @@ def steadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
     Uold = model(X)
     
     # Diffusion coefficient
-    mu = diffusion(X).detach().repeat(num_ghost,1)
+    mu = diffusion(X)
+
+    if mu.size():
+        mu = mu.repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -72,7 +78,7 @@ def steadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
 
     # Periodic boundaries
     if any(domain.periodic):
-        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
 
     # Evaluate at Xnew
     Unew = model(Xnew)
@@ -104,7 +110,10 @@ def unsteadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
     gradPold = ad.gradient(UPold[:,-1], X[:,:x_dim])
 
     # Diffusion coefficient
-    mu = diffusion(X).detach()
+    mu = diffusion(X)
+
+    if mu.size():
+        mu = mu.repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -113,11 +122,11 @@ def unsteadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
 
     # Periodic boundaries
     if any(domain.periodic):
-        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
 
     # Inlet/outlet
     if any(domain.inletoutlet):
-        Xnew = exit_inletoutlet(X.repeat(num_ghost,1), Xnew[:,:x_dim], domain.inletoutlet, x_dim, tol)
+        Xnew[:,:x_dim] = exit_inletoutlet(X.repeat(num_ghost,1), Xnew[:,:x_dim], domain.inletoutlet, x_dim, tol)
 
     # Evaluate at Xnew
     UPnew = model(Xnew)
@@ -149,7 +158,10 @@ def steadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_ghos
     # Evaluate grad(p) at X
     gradPold = ad.gradient(UPold[:,-1], X[:,:x_dim])
 
-    mu = diffusion(X).detach()
+    mu = diffusion(X)
+
+    if mu.size():
+        mu = mu.repeat(num_ghost,1)
 
     # Move Xnew
     # TODO: Implement higher order SDE simulation
@@ -157,11 +169,11 @@ def steadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_ghos
 
     # Periodic boundaries
     if any(domain.periodic):
-        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
 
     # Inlet/outlet
     if any(domain.inletoutlet):
-        Xnew = exit_inletoutlet(X.repeat(num_ghost,1), Xnew[:,:x_dim], domain.inletoutlet, x_dim, tol)
+        Xnew[:,:x_dim] = exit_inletoutlet(X.repeat(num_ghost,1), Xnew[:,:x_dim], domain.inletoutlet, x_dim, tol)
 
     # Evaluate at Xnew
     UPnew = model(Xnew)
@@ -190,7 +202,10 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
     Uold = model(X)
     
     # Diffusion coefficient
-    mu = diffusion(X).detach()
+    mu = diffusion(X)
+
+    if mu.size():
+        mu = mu.repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -198,7 +213,7 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
 
     # Periodic boundaries
     if any(domain.periodic):
-        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
 
     # Evaluate at Xnew
     Unew = model(Xnew)
@@ -223,7 +238,10 @@ def Heat(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **
     Uold = model(X)
     
     # Diffusion coefficient
-    mu = diffusion(X).detach()
+    mu = diffusion(X)
+
+    if mu.size():
+        mu = mu.repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -232,7 +250,7 @@ def Heat(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **
 
     # Periodic boundaries
     if any(domain.periodic):
-        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
 
     # Evaluate at Xnew
     Unew = model(Xnew)
@@ -425,15 +443,11 @@ def find_time_exit(Xold, Xnew, tol):
 def exit_periodic(Xnew, periodic_boundaries):
     
     for bdry in periodic_boundaries:
-        below_base = Xnew[:,bdry.index] < bdry.base
+        below_bot = Xnew[:,bdry.index] < bdry.bot
         above_top = Xnew[:,bdry.index] > bdry.top
 
-        if torch.sum(below_base) > 0:
-            Xnew[below_base, bdry.index] = Xnew[below_base, bdry.index] + (bdry.top - bdry.base)
+        if torch.sum(below_bot) > 0:
+            Xnew[below_bot, bdry.index] = Xnew[below_bot, bdry.index] + (bdry.top - bdry.bot)
         if torch.sum(above_top) > 0:
-            Xnew[above_top,bdry.index] = Xnew[above_top, bdry.index] - (bdry.top - bdry.base)
+            Xnew[above_top,bdry.index] = Xnew[above_top, bdry.index] - (bdry.top - bdry.bot)
     return Xnew
-
-### TODO Other PDES
-### Elliptic
-### Parabolic

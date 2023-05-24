@@ -71,8 +71,8 @@ class theDomain:
             ### 3D walls - Note: 2D and 3D  walls not compatible with each other
             if specs['type'] == 'sphere':
                 self.wall.append( bdry.sphere( centre = specs['centre'], 
-                                                     radius = specs['radius'], 
-                                                     bc = specs['boundary_condition']))
+                                               radius = specs['radius'], 
+                                               bc = specs['boundary_condition']))
             
             if specs['type'] == 'ball':
                 self.wall.append( bdry.ball( centre = specs['centre'],
@@ -82,7 +82,7 @@ class theDomain:
             if specs['type'] == 'cylinder':
                 self.wall.append( bdry.cylinder( centre = specs['centre'],
                                                        radius = specs['radius'],
-                                                       ### TODO axis of rotation
+                                                       z = specs['z'],
                                                        bc = specs['boundary_condition'] ))
             
             if specs['type'] == 'plane':
@@ -307,7 +307,6 @@ class thePoints:
                 # For vector output:
                 if self.output_dim > 1:
                     max, kk = torch.max(max, dim=0)
-                    print(jj)
                     jj = jj[kk,None]
 
                 if max > Linfloss:
@@ -319,7 +318,7 @@ class thePoints:
                     previous_max = np.sqrt(squaredlosses[ii,1])
                     self.reject[ii] = find_resample(X, index, torch.sqrt(loss.data), self.reject[ii], previous_max)
 
-                # TODO Integral Scaling
+                # Calculate L2 loss through Monte Carlo Integration
                 L2loss_batch = self.integrate[ii](X, numpts, loss)
                 L2loss += L2loss_batch
 
@@ -332,10 +331,13 @@ class thePoints:
             # Train for Linf optimization
             self.Linfoptimizers[ii].zero_grad()
 
+            argmax = self.toTrain[ii].location[max_index,:]
+
             if self.output_dim > 1:
-                Linfloss = self.target[ii](X[max_index,:].requires_grad_(), model, domain, **self.var[ii])[0,kk]
+                Linfloss = self.target[ii](argmax.requires_grad_(), model, domain, **self.var[ii])[0,kk]
             else:
-                Linfloss = self.target[ii](X[max_index,:].requires_grad_(), model, domain, **self.var[ii])
+                Linfloss = self.target[ii](argmax.requires_grad_(), model, domain, **self.var[ii])
+
             Linfloss.backward()
             
             # Step for Linf optimization

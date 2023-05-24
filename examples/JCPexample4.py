@@ -12,7 +12,7 @@ import numpy as np
 
 # Pressure Gradient -> Negative to induce downward movement
 pressure_constant = -5.0
-
+diffusion_constant = 1.0
 cylinder_radius = 1.0
 
 ############## Collect Errors ######################
@@ -25,7 +25,7 @@ if collect_error:
     def true_fun(X):
         u = torch.stack( ( torch.zeros(X.size(0), device=X.device),
                            torch.zeros(X.size(0), device=X.device),
-                           pressure_constant/4/mu*(X[:,0]**2 + X[:,1]**2 - cylinder_radius) ), dim=1)
+                           pressure_constant/4/diffusion_constant*(X[:,0]**2 + X[:,1]**2 - cylinder_radius) ), dim=1)
         return u
 
 
@@ -50,12 +50,11 @@ else:
 ################# PDE Coefficients ########################
 
 # PDE type:
-pde_type = 'NavierStokes'
+pde_type = 'viscousBurgers'
 
 # Diffusion coefficient
 def diffusion(X):
-    mu = torch.tensor(1.0 )
-    #mu = X[:,4,None]
+    mu = torch.tensor(diffusion_constant )
     return mu
 
 # Forcing term
@@ -80,13 +79,14 @@ def bdry_con(X):
 boundingbox = [ [-1.0, 1.0], [-1.0, 1.0], [0.0, 1.0] ]
 
 periodic1 = { 'variable':'z', 
-              'base':0.0,
+              'bot':0.0,
               'top':1.0 }
 
 
 cylinder1 = {'type':'cylinder',
             'centre': [0.0 ,0.0 ,0.0],
             'radius': 1.0,
+            'z': [0.0, 1.0],
             'boundary_condition':bdry_con }
             
 list_of_walls = [cylinder1]

@@ -61,10 +61,14 @@ def define_problem_parameters(parameters, solver_parameters):
                                          param.solid_walls, 
                                          param.inlet_outlet, 
                                          param.list_of_periodic_ends, 
-                                         param.mesh],
-                          'error': {'collect_error': param.collect_error,
-                                       'num_error': param.num_error,
-                                       'true_fun': param.true_fun}}
+                                         param.mesh]}
+
+    if param.collect_error:
+        problem_parameters['error'] = {'collect_error': param.collect_error,
+                                        'num_error': param.num_error,
+                                        'true_fun': param.true_fun}
+    else:
+        problem_parameters['error'] = {'collect_error': param.collect_error}
 
     if param.t_dim:
         problem_parameters['IC'] = param.init_con
@@ -164,7 +168,8 @@ def solvePDE(parameters='', **solver):
     
     # Use GPU if available
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    
+    # torch.cuda.empty_cache()
+
     ### Training Parameters
     solver_parameters = define_solver_parameters(**solver)
 

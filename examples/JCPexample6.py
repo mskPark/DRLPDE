@@ -8,6 +8,8 @@ import torch
 import math
 import numpy as np
 
+collect_error = False
+
 # Physical Dimension
 x_dim = 2
 output_dim = 2
@@ -79,41 +81,41 @@ def inlet_con(X):
 #     Boundary condition is given by a function using pytorch expressions
 
 
-boundingbox = [ [0, 5*L_height], [-L_height,L_height] ]
+boundingbox = [ [0.0, 5*L_height], [-L_height,L_height] ]
 
 disk1 = {   'type':'disk',
-            'centre': [L_height,0],
-            'radius': L_height/3,
+            'centre': [L_height,0.0],
+            'radius': L_height/3.0,
             'endpoints': [],
             'boundary_condition':bdry_con }
 
 circle1 = {  'type':'circle',
-             'centre': [L_height,0],
-             'radius': L_height/3,
+             'centre': [L_height,0.0],
+             'radius': L_height/3.0,
              'boundary_condition':bdry_con}
 
 wall_left = {'type':'line',
-             'point': [0, -L_height],
-             'normal': [1,0],
-             'endpoints': [ [0, -L_height], [0, L_height] ],
+             'point': [0.0, -L_height],
+             'normal': [1.0, 0.0],
+             'endpoints': [ [0.0, -L_height], [0.0, L_height] ],
              'boundary_condition': inlet_con }
 
 wall_top = { 'type':'line',
-             'point': [0, L_height],
-             'normal':  [0,-1],
-             'endpoints': [ [0, L_height], [5*L_height, L_height] ],
+             'point': [0.0, L_height],
+             'normal':  [0.0, -1.0],
+             'endpoints': [ [0.0, L_height], [5*L_height, L_height] ],
              'boundary_condition': bdry_con }
 
 wall_bot = {'type':'line',
-             'point': [0,-L_height],
-             'normal': [0, 1],
-             'endpoints': [ [0, -L_height], [5*L_height, -L_height] ],
+             'point': [0.0, -L_height],
+             'normal': [0.0, 1.0],
+             'endpoints': [ [0.0, -L_height], [5.0*L_height, -L_height] ],
              'boundary_condition': bdry_con }
 
 wall_right = {'type':'line',
-             'point': [5*L_height, -L_height],
-             'normal': [-1,0],
-             'endpoints': [ [5*L_height, -L_height], [5*L_height, L_height] ],
+             'point': [5.0*L_height, -L_height],
+             'normal': [-1.0, 0.0],
+             'endpoints': [ [5.0*L_height, -L_height], [5.0*L_height, L_height] ],
              'boundary_condition': inlet_con }
 
 

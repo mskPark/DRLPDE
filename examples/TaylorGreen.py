@@ -11,7 +11,7 @@ import torch
 import math
 import numpy as np
 
-mu = 1.0
+diffusion_constant = 1.0
 
 ############## Collect Errors ######################
 
@@ -21,8 +21,8 @@ num_error = 2**15
 
 if collect_error:
     def true_fun(X):
-        u = torch.stack( ( torch.cos(X[:,0])*torch.sin(X[:,1])*torch.exp(-2*mu*X[:,2]),
-                          -torch.sin(X[:,0])*torch.cos(X[:,1])*torch.exp(-2*mu*X[:,2]) ), dim=1)
+        u = torch.stack( ( torch.cos(X[:,0])*torch.sin(X[:,1])*torch.exp(-2*diffusion_constant*X[:,2]),
+                          -torch.sin(X[:,0])*torch.cos(X[:,1])*torch.exp(-2*diffusion_constant*X[:,2]) ), dim=1)
         return u
 
 ############## Problem Parameters ################
@@ -52,7 +52,7 @@ pde_type = 'viscousBurgers'
 
 # Diffusion coefficient
 def diffusion(X):
-    mu = torch.tensor( 1.0 )
+    mu = torch.tensor( diffusion_constant )
     #mu = X[:,4,None]
     return mu
 
@@ -81,11 +81,11 @@ def init_con(X):
 boundingbox = [ [-math.pi, math.pi], [-math.pi,math.pi], ]
 
 periodic1 = { 'variable':'x', 
-              'base':-math.pi,
+              'bot':-math.pi,
               'top':math.pi }
 
 periodic2 = { 'variable':'y', 
-              'base':-math.pi,
+              'bot':-math.pi,
               'top':math.pi }
 
 list_of_walls = []

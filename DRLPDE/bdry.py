@@ -300,9 +300,9 @@ class disk:
         distance = ( torch.norm(X[:,:2] - self.centre.to(X.device),dim=1) - self.radius )
         return distance
     
-    def plot(self, num):
-        ### Give uniformly spaced points along the wall to plot
-        pass
+    def integrate(self, X, num, F):
+        integral = 2*math.pi*self.radius*torch.sum(F*torch.norm(X[:,:1], dim=0))/num
+        return integral
 
 # 2-Dimensional Walls
 
@@ -358,7 +358,6 @@ class ball:
         distance = ( torch.norm( X[:,:3] - self.centre.to(X.device),dim=1) - self.radius )
         return distance
 
-# TODO
 class sphere:
     ### Class structure for a 3D hollow sphere boundary, the domain being inside the sphere
     
@@ -368,7 +367,7 @@ class sphere:
         self.radius = radius
         self.bc = bc
         self.measure = 4.0*math.pi*self.radius**2
-        self.dim = 3
+        self.dim = 2
         
     def make_points(self, num):
         ### Spherical coordinates
@@ -399,21 +398,22 @@ class sphere:
         integral = 2*math.pi**2*self.radius**2*torch.sum( F*torch.sin(theta) )/num
         return integral
 
-# TODO
 class cylinder:
     ### Class structure for inside a cylindrical shell
     ### Centre: One end of the cylinder
     ### Points in z-direction
     ### TODO include axis: Points in direction, length of axis determines how long
     
-    def __init__(self, centre, radius, boundary_condition):
+    def __init__(self, centre, radius, z, bc):
         ### Centre and Radius
         self.centre = torch.tensor( centre )
         self.radius = radius
-        self.bdry_cond = boundary_condition
-        
+        self.z = z
+        self.bc = bc
+        self.measure = 2.0*math.pi*self.radius*(self.z[1] - self.z[0])
+        self.dim = 2
             
-    def make_bdry_pts(self, num_bdry, boundingbox, is_unsteady, other_bdrys):
+    def make_points(self, num_bdry):
         ### Cylindrical coordinates
         ###
         ### x = radius*cos(theta)
@@ -422,34 +422,23 @@ class cylinder:
 
         theta = 2*math.pi*torch.rand( (num_bdry))
         
-        if is_unsteady:
-            Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
-                                 self.radius*torch.sin(theta) + self.centre[1],
-                                (boundingbox[-2][1] - boundingbox[-2][0])*torch.rand((num_bdry)) + boundingbox[-2][0],
-                                (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]),dim=1 )  
-        else:
-            Xbdry = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
-                                 self.radius*torch.sin(theta) + self.centre[1],
-                                 (boundingbox[-1][1] - boundingbox[-1][0])*torch.rand((num_bdry)) + boundingbox[-1][0]), dim=1 )  
-        
-        ### Check if outside other bdrys
-        ### and remake bdry points
-        outside = torch.zeros(Xbdry.size(0), dtype=torch.bool)
+        Xwall = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
+                             self.radius*torch.sin(theta) + self.centre[1],
+                             (self.z[1] - self.z[0])*torch.rand((num_bdry)) + self.z[0]), dim=1 )  
 
-        for bdry in other_bdrys:
-            outside += bdry.dist_to_bdry(Xbdry) < 0
-        
-        if any(outside):
-            Xbdry[outside,:] = self.make_bdry_pts(torch.sum(outside), boundingbox, is_unsteady, other_bdrys)
 
-        return Xbdry
+        return Xwall
             
-    def dist_to_bdry(self, X):
+    def distance(self, X):
         ### Signed distance to boundary
         ### positive = inside domain
         ### negative = outside domain
         distance = ( self.radius - torch.norm( X[:,:2] - self.centre[:2].to(X.device),dim=1) )
         return distance
+    
+    def integrate(self, X, num, F):
+        integral = self.measure*torch.sum(F)/num
+        return integral
 
 # TODO
 class plane:
