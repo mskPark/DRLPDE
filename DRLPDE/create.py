@@ -240,7 +240,6 @@ class thePoints:
         # domain.wall + domain.solid
         for bdry in domain.wall + domain.solid:
             nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0], bdry.dim)
-
             self.toTrain.append(BCPoints(nb, domain, bdry, input_dim, input_range, dev))
             self.target.append(Dirichlet_target)
             self.var.append({'true':bdry.bc})
@@ -252,13 +251,13 @@ class thePoints:
         # TODO domain.inletoutlet
         for inletoutlet in domain.inletoutlet:
             nb = num_points_wall(num, bdry.measure, domain.volume, input_dim[0] + input_dim[1], bdry.dim)
-            self.toTrain.append(BCPoints(nb, domain, inletoutlet, input_dim, input_range))
+            self.toTrain.append(BCPoints(nb, domain, inletoutlet, input_dim, input_range, dev))
             self.target.append(Inletoutlet_target)
-            self.var.append(inletoutlet.bc)
-            self.integrate.append()
-            self.L2optimizers.append()
-            self.Linfoptimizers.append()
-            self.reject.append([])
+            self.var.append({'true':inletoutlet.bc})
+            self.integrate.append(inletoutlet.integrate)
+            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
+            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
+            self.reject.append(torch.tensor([], dtype=torch.int64))
         # TODO mesh
         for mesh in domain.mesh:
             self.toTrain.append(MeshPoints(num_mesh, mesh))
@@ -368,7 +367,7 @@ def Dirichlet_target(X, model, domain, true, **var):
 
     return target
 
-def Inletoutlet_target(X, model, true):
+def Inletoutlet_target(X, model, domain, true, **var):
     # (u,v,w, p)
     # Target = p - true_pressure
     UP = model(X)

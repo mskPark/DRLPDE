@@ -32,7 +32,7 @@ def unsteadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_
     mu = diffusion(X)
     
     if mu.size():
-        mu = mu.repeat(num_ghost,1)
+        mu = mu[:,None].repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -70,7 +70,7 @@ def steadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
     mu = diffusion(X)
 
     if mu.size():
-        mu = mu.repeat(num_ghost,1)
+        mu = mu[:,None].repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -101,32 +101,28 @@ def unsteadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
     ### model: (u,v,w,p) = (curl(A), p)
 
     # Xnew = X repeated
-    Xnew = X.clones.detach().repeat(num_ghost,1)
+    Xnew = X.clone().detach().repeat(num_ghost,1)
 
     # Evaluate at X
     UPold = model(X)
-
+    
     # Evaluate grad(p) at X
-    gradPold = ad.gradient(UPold[:,-1], X[:,:x_dim])
+    gradPold = ad.gradient(UPold[:,-1], X)[:,:x_dim]
 
     # Diffusion coefficient
     mu = diffusion(X)
 
     if mu.size():
-        mu = mu.repeat(num_ghost,1)
+        mu = mu[:,None].repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
-    Xnew[:,:x_dim] = Xnew[:,:x_dim] - dt*UPold.detach().repeat(num_ghost,1) + np.sqrt(2*dt*mu)*torch.randn((Xnew.size(0), x_dim), device=X.device, requires_grad=True)
+    Xnew[:,:x_dim] = Xnew[:,:x_dim] - dt*UPold[:,:x_dim].repeat(num_ghost,1) + np.sqrt(2*dt*mu)*torch.randn((Xnew.size(0), x_dim), device=X.device, requires_grad=True)
     Xnew[:,x_dim] = Xnew[:,x_dim] - dt
 
     # Periodic boundaries
     if any(domain.periodic):
         Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
-
-    # Inlet/outlet
-    if any(domain.inletoutlet):
-        Xnew[:,:x_dim] = exit_inletoutlet(X.repeat(num_ghost,1), Xnew[:,:x_dim], domain.inletoutlet, x_dim, tol)
 
     # Evaluate at Xnew
     UPnew = model(Xnew)
@@ -134,11 +130,14 @@ def unsteadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
     # Calculate exits and re-evaluate bc, inletoutlet, ic
     Xnew, UPnew = exit_bc(X.repeat(num_ghost,1), Xnew, UPnew, domain.exitflag, x_dim, tol)
 
-    Xnew, UPnew = exit_ic(X.repeat(num_ghost,1), Xnew, UPnew, ic, x_dim, tol)
+    if any(domain.inletoutlet):
+        Xnew[:,:x_dim] = exit_inletoutlet(X.repeat(num_ghost,1), Xnew[:,:x_dim], domain.inletoutlet, x_dim, tol)
 
-    # Evaluate grad(p) at Xnew
-    gradPnew = ad.gradient(UPnew[:,-1], Xnew[:,:x_dim])
+    Xnew, UPnew = exit_ic(X.repeat(num_ghost,1), Xnew, UPnew, ic, x_dim, tol)
     
+    # Evaluate grad(p) at Xnew
+    gradPnew = ad.gradient(UPnew[:,-1], Xnew)[:,:x_dim]
+
     # Calculate Loss = Residual Squared Error
     Loss = SquaredError( UPnew[:,:x_dim].detach().reshape(num_ghost, X.size(0), x_dim).mean(0) + dt/2 *( gradPnew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0), UPold + gradPold) )
 
@@ -150,22 +149,22 @@ def steadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_ghos
     ### model: (u,v,w,p) = (curl(A), p)
 
     # Xnew = X repeated
-    Xnew = X.clone.detach().repeat(num_ghost,1)
+    Xnew = X.clone().detach().repeat(num_ghost,1)
 
     # Evaluate at X
     UPold = model(X)
 
     # Evaluate grad(p) at X
-    gradPold = ad.gradient(UPold[:,-1], X[:,:x_dim])
+    gradPold = ad.gradient(UPold[:,-1], X)[:,:x_dim]
 
     mu = diffusion(X)
 
     if mu.size():
-        mu = mu.repeat(num_ghost,1)
+        mu = mu[:,None].repeat(num_ghost,1)
 
     # Move Xnew
     # TODO: Implement higher order SDE simulation
-    Xnew[:,:x_dim] = Xnew[:,:x_dim] - dt*UPold.detach().repeat(num_ghost,1) + torch.sqrt(2*dt*mu)*torch.randn((Xnew.size(0), x_dim), device=X.device, requires_grad=True)
+    Xnew[:,:x_dim] = Xnew[:,:x_dim] - dt*UPold[:,:x_dim].repeat(num_ghost,1) + torch.sqrt(2*dt*mu)*torch.randn((Xnew.size(0), x_dim), device=X.device, requires_grad=True)
 
     # Periodic boundaries
     if any(domain.periodic):
@@ -182,7 +181,7 @@ def steadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_ghos
     Xnew, UPnew = exit_bc(X.repeat(num_ghost,1), Xnew, UPnew, domain.exitflag, x_dim, tol)
 
     # Evaluate grad(p) at Xnew
-    gradPnew = ad.gradient(UPnew[:,-1], Xnew[:,:x_dim])
+    gradPnew = ad.gradient(UPnew[:,-1], Xnew)[:,:x_dim]
 
      # Calculate Loss = Residual Squared Error
     Loss = SquaredError( UPnew[:,:x_dim].detach().reshape(num_ghost, X.size(0), x_dim).mean(0) + dt/2 *( gradPnew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0), UPold + gradPold) )
@@ -205,7 +204,7 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
     mu = diffusion(X)
 
     if mu.size():
-        mu = mu.repeat(num_ghost,1)
+        mu = mu[:,None].repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -241,7 +240,7 @@ def Heat(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **
     mu = diffusion(X)
 
     if mu.size():
-        mu = mu.repeat(num_ghost,1)
+        mu = mu[:,None].repeat(num_ghost,1)
 
     # Move walkers
     # TODO: Implement higher order SDE simulation
@@ -387,18 +386,17 @@ def exit_ic(Xold, Xnew, Unew, initial_con, x_dim, tol):
 
     return Xnew, Unew 
 
-def exit_inletoutlet(Xold, Xnew, inletoutlet, tol):
+def exit_inletoutlet(Xold, Xnew, inletoutlet, x_dim, tol):
     ### Calculate inlet/outlet exits
     
     # If you want to record which walkers exited
     #outside = torch.zeros( Xnew.size(0), dtype=torch.bool, device=Xnew.device)
 
-
     for bdry in inletoutlet:
-        outside_bdry = bdry.distance(Xnew) < 0
+        outside_bdry = bdry.distance(Xnew[:,:x_dim]) < 0
         if torch.sum(outside_bdry) > 0:
             ### Bisection to get close to exit location up to tolerance tol
-            Xnew[outside_bdry,:] = find_bdry_exit(Xold[outside_bdry,:], Xnew[outside_bdry,:], bdry, tol)
+            Xnew[outside_bdry,:x_dim] = find_bdry_exit(Xold[outside_bdry,:x_dim], Xnew[outside_bdry,:x_dim], bdry, tol)
         
         #outside += outside_bdry
     return Xnew

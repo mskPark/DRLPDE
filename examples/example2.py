@@ -1,8 +1,7 @@
 ###
-### Journal of Computational Physics Submission
-###     Deep Reinforcement Learning of Viscous Incompressible Flow
-###     Example 6: Steady Flow Past Disk
-###
+### Unsteady Flow Past Disk with Hyperparameters
+### using viscous Burgers formulation
+### 
 
 import torch
 import math
@@ -15,16 +14,18 @@ x_dim = 2
 output_dim = 2
 
 # Steady or Unsteady
-t_dim = 0
+t_dim = 1
 if t_dim:
     t_range = [[0.0, 1.0]]
 else:
     t_range = [ [] ]
 
 # Hyperparameters
-hyper_dim = 0
+hyper_dim = 2
 if hyper_dim:
-    hyper_range = [[0.0, 1.0], [1.0, 5.0]]
+    # X[:,3] = inlet velocity
+    # X[:,4] = diffusion
+    hyper_range = [[1.0, 10.0], [0.1, 1.0]]
 else:
     hyper_range = [ [] ]
 
@@ -40,7 +41,7 @@ pde_type = 'viscousBurgers'
 
 # Diffusion coefficient
 def diffusion(X):
-    mu = torch.tensor(1.0 )
+    mu = X[:,4]
     return mu
 
 # Forcing term
@@ -59,10 +60,14 @@ def bdry_con(X):
     return u
 
 def inlet_con(X):
-    u = torch.zeros( (X.size(0), output_dim), device=X.device)
+    u = torch.zeros((X.size(0), output_dim), device=X.device)
     
-    u[:,0] = v0*(L_height - X[:,1])*(L_height + X[:,1])/(L_height**2)
+    u[:,0] = X[:,3]*(L_height - X[:,1])*(L_height + X[:,1])/(L_height**2)
 
+    return u
+
+def init_con(X):
+    u = torch.zeros( (X.size(0), output_dim), device=X.device)
     return u
 
 #################  Make the domain  #######################
