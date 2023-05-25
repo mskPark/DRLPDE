@@ -32,10 +32,18 @@ def define_solver_parameters(**solver):
                                       'num_ghost':128,
                                       'tol': 1e-6},
                          'learningrate': 1e-4,
+                         'bdry_lr': 1e-5,
                          'resample_every': 1.1,
                          'walk': False,              
                          'importance_sampling': False
                            }
+    
+    ## 'method': {'type': 'stochastic', 'dt':1e-4, 'num_ghost':128, 'tol':1e-6}
+    #          : {'type': 'autodiff'}
+    #          : {'type': 'direct}
+    
+    ## Additional Parameters to add
+    ##
 
     ### Any new parameters override the default parameters
     for new in solver.keys():
@@ -76,8 +84,9 @@ def define_problem_parameters(parameters, solver_parameters):
     ### Method type
     if solver_parameters['method']['type'] == 'autodiff':
         import DRLPDE.autodiff as method
-        var_train = {'diffusion': param.diffusion,
-                                           'forcing': param.forcing}
+        var_train = {'x_dim': param.x_dim,
+                    'diffusion': param.diffusion,
+                     'forcing': param.forcing}
         
          ### PDE
         if param.t_dim:
@@ -237,7 +246,7 @@ def solvePDE(parameters='', **solver):
         # dt, num_ghost, tol
         # Resample points
         if do_resample:
-            Points.ResamplePoints(Domain, problem_parameters)
+            Points.ResamplePoints(Domain, dev, problem_parameters)
 
         # Print Progress
         if step % print_every == 0:

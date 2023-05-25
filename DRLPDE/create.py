@@ -222,8 +222,8 @@ class thePoints:
         var_train = problem_parameters['var_train']
         interior_target = problem_parameters['InteriorTarget']
         learningrate = solver_parameters['learningrate']
+        bdry_lr = solver_parameters['bdry_lr']
 
-        bdry_lr = 1e-5
         Linf_lr = 0
 
         # Interior Points
@@ -235,7 +235,7 @@ class thePoints:
         self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=Linf_lr)]
         #self.scheduler = [torch.optim.lr_scheduler.MultiStepLR(self.L2optimizers[0], milestones=[500], gamma=0.1)]
         
-        self.reject = [torch.tensor([], dtype=torch.int64)]
+        self.reject = [torch.tensor([], dtype=torch.int64, device=dev)]
 
         # domain.wall + domain.solid
         for bdry in domain.wall + domain.solid:
@@ -246,7 +246,7 @@ class thePoints:
             self.integrate.append( bdry.integrate )
             self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
             self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
-            self.reject.append(torch.tensor([], dtype=torch.int64))
+            self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
 
         # TODO domain.inletoutlet
         for inletoutlet in domain.inletoutlet:
@@ -257,7 +257,7 @@ class thePoints:
             self.integrate.append(inletoutlet.integrate)
             self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
             self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
-            self.reject.append(torch.tensor([], dtype=torch.int64))
+            self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
         # TODO mesh
         for mesh in domain.mesh:
             self.toTrain.append(MeshPoints(num_mesh, mesh))
@@ -277,7 +277,7 @@ class thePoints:
             self.integrate.append( domain.integrate)
             self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
             self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
-            self.reject.append(torch.tensor([], dtype=torch.int64))
+            self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
 
         # How many points
         self.numtype = int(len(self.toTrain))
@@ -346,7 +346,7 @@ class thePoints:
 
         return losses
 
-    def ResamplePoints(self, domain, problem_parameters):
+    def ResamplePoints(self, domain, dev, problem_parameters):
         input_dim = problem_parameters['input_dim']
         input_range = problem_parameters['input_range']
 
@@ -354,7 +354,7 @@ class thePoints:
             indices = torch.arange(self.toTrain[ii].__len__())
             if any(self.reject[ii]):
                 indices = indices[self.reject[ii]]
-            self.toTrain[ii].location[indices,:] = self.toTrain[ii].generate_points(indices.size(0), input_dim, input_range, domain)
+            self.toTrain[ii].location[indices,:] = self.toTrain[ii].generate_points(indices.size(0), input_dim, input_range, domain).to(dev)
 
 ### Number of points along boundary
 ###   based on Mean Minimum Distance

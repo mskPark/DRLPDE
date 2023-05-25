@@ -229,7 +229,7 @@ def steadyNavierStokes(x, model, diffusion, forcing, x_dim, **var_train):
 
     return Loss
 
-def Laplace(x, model, diffusion, forcing, x_dim, **var_train):
+def Laplace(x, model, domain, x_dim, diffusion, forcing, **var_train):
 
     y = model(x)
     mu = diffusion(x)
