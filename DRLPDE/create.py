@@ -138,7 +138,7 @@ class theDomain:
         self.exitflag = self.wall + self.inletoutlet
 
         # For checking whether points are inside/outside the domain
-        self.inside = self.wall + self.inletoutlet + self.mesh
+        self.checkinside = self.wall + self.inletoutlet + self.mesh
 
         # Calculate volume of domain
         # Crashes for low tolerance: Need too many points
@@ -166,7 +166,7 @@ class theDomain:
             X[:,ii] = (self.boundingbox[ii][1] - self.boundingbox[ii][0])*torch.rand( (num) ) + self.boundingbox[ii][0]
 
         outside = torch.zeros( X.size(0), dtype=torch.bool)
-        for wall in self.inside:
+        for wall in self.checkinside:
             outside += wall.distance(X) < 0
         
         frac = (num - torch.sum(outside))/num
@@ -233,6 +233,7 @@ class thePoints:
         self.integrate = [domain.integrate]
         self.L2optimizers = [torch.optim.Adam(model.parameters(), lr=learningrate)]
         self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=Linf_lr)]
+
         #self.scheduler = [torch.optim.lr_scheduler.MultiStepLR(self.L2optimizers[0], milestones=[500], gamma=0.1)]
         
         self.reject = [torch.tensor([], dtype=torch.int64, device=dev)]
@@ -483,7 +484,7 @@ class InteriorPoints(torch.utils.data.Dataset):
             X[:,ii] = (input_range[ii][1] - input_range[ii][0])*torch.rand( (num) ) + input_range[ii][0]
 
         outside = torch.zeros( X.size(0), dtype=torch.bool)
-        for wall in domain.inside:
+        for wall in domain.checkinside:
             outside += wall.distance(X) < 0
 
         if any(outside):
@@ -573,7 +574,7 @@ class ICPoints(torch.utils.data.Dataset):
             X[:,ii] = (input_range[ii][1] - input_range[ii][0])*torch.rand( (num) ) + input_range[ii][0]
 
         outside = torch.zeros( X.size(0), dtype=torch.bool)
-        for wall in domain.inside:
+        for wall in domain.checkinside:
             outside += wall.distance(X) < 0
 
         if any(outside):

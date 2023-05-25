@@ -318,8 +318,11 @@ def unsteadyParabolic(X, model, domain, mu, x_dim, dt, num_batch, num_ghost, tol
 
 ### Simulate Stochastic Process
 
-def walk(X, num, model, input_dim, input_range, diffusion, x_dim, domain, dt, **var_train):
+def walk(IntPoints, num, model, domain, dev, input_dim, input_range, x_dim, diffusion, dt, **var_train):
     
+    X = IntPoints.location
+    num = IntPoints.num_pts
+
     # Evaluate at X
     Uold = model(X)
 
@@ -334,10 +337,10 @@ def walk(X, num, model, input_dim, input_range, diffusion, x_dim, domain, dt, **
     if any(domain.periodic):
         Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
 
-    for bdry in domain.inside:
+    for bdry in domain.checkinside:
         outside_bdry = bdry.distance(Xnew[:,:x_dim]) < 0
         if any(outside_bdry):
-            Xnew[outside_bdry,:x_dim] = create.generate_interior_points(torch.sum(outside_bdry), input_dim, input_range, domain, domain.inside)
+            Xnew[outside_bdry,:x_dim] = IntPoints.generate_points(torch.sum(outside_bdry), input_dim, input_range, domain).to(dev)
 
     return Xnew.detach()
 

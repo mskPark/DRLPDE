@@ -41,7 +41,7 @@ def define_solver_parameters(**solver):
     ## 'method': {'type': 'stochastic', 'dt':1e-4, 'num_ghost':128, 'tol':1e-6}
     #          : {'type': 'autodiff'}
     #          : {'type': 'direct}
-    
+
     ## Additional Parameters to add
     ##
 
@@ -136,7 +136,11 @@ def define_problem_parameters(parameters, solver_parameters):
                 make_target = method.Laplace
 
     elif solver_parameters['method']['type'] == 'direct':
-        var_train = {'true': param.true_fun}
+        var_train = {'true': param.true_fun,
+                     'x_dim': param.x_dim,
+                    'diffusion': param.diffusion,
+                     'forcing': param.forcing,
+                     'dt': 1e-4}
         make_target = create.Dirichlet_target
 
     elif solver.method == 'finitediff':
@@ -239,10 +243,10 @@ def solvePDE(parameters='', **solver):
 
         # TODO
         if walk:
-            Points.toTrain[0].location = stochastic.walk( Points.toTrain[0].location, num, model, 
-                                                        problem_parameters['input_dim'], 
-                                                        problem_parameters['input_range'],
-                                                        problem_parameters['var_train'])
+            Points.toTrain[0].location = stochastic.walk( Points.toTrain[0], num, model, Domain, dev,
+                                                            problem_parameters['input_dim'], 
+                                                            problem_parameters['input_range'],
+                                                            **problem_parameters['var_train'])
         # dt, num_ghost, tol
         # Resample points
         if do_resample:
