@@ -35,7 +35,7 @@ output_dim = 2
 # Steady or Unsteady
 t_dim = 1
 if t_dim:
-    t_range = [[0.0, 0.25]]
+    t_range = [[0.0, 1.0]]
 else:
     t_range = [ [] ]
 

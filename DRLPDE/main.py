@@ -22,15 +22,16 @@ def define_solver_parameters(**solver):
     solver_parameters = {'savemodel': now.strftime('%b%d_%I%M%p'),
                          'loadmodel': '',
                          'numpts': 2**12,
-                         'numbatch': 2**12,
+                         'numbatch': 2**11,
                          'trainingsteps': 1e4,
                          'neuralnetwork':'FeedForward',
                          'method': {'type':'stochastic',
                                       'dt':1e-4,
-                                      'num_ghost':128,
+                                      'num_ghost':64,
                                       'tol': 1e-6},
                          'learningrate': 1e-4,
                          'bdry_lr': 1e-5,
+                         'reschedule_every': 1.1,
                          'resample_every': 1.1,
                          'walk': False,              
                          'importance_sampling': False
@@ -179,7 +180,7 @@ def solvePDE(parameters='', **solver):
     
     # Use GPU if available
     dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
 
     ### Training Parameters
     solver_parameters = define_solver_parameters(**solver)
@@ -195,6 +196,7 @@ def solvePDE(parameters='', **solver):
     resample_every = solver_parameters['resample_every']
     walk = solver_parameters['walk']
     importance_sampling = solver_parameters['importance_sampling']
+    reschedule_every = solver_parameters['reschedule_every']
     print_every = round(trainingsteps/10)
 
     ### Neural Network
@@ -211,6 +213,7 @@ def solvePDE(parameters='', **solver):
     # Squared losses
     # squaredlosses[:, :, 0] = L2 squared loss
     # squaredlosses[:, :, 1] = Linf squared loss
+
     squaredlosses = np.ones((trainingsteps, Points.numtype, 2))
 
     # TODO Collect errors
@@ -233,19 +236,22 @@ def solvePDE(parameters='', **solver):
     start_time = time.time()
     for step in range(1,trainingsteps):
         
+        do_reschedule = step % reschedule_every == 0
         do_resample = step % resample_every == 0
         squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
         
         if collect_error:
             squarederrors[step+1,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
 
-        # TODO
         if walk:
             Points.toTrain[0].location = stochastic.walk( Points.toTrain[0], num, model, Domain, dev,
                                                             problem_parameters['input_dim'], 
                                                             problem_parameters['input_range'],
                                                             **problem_parameters['var_train'])
-        # dt, num_ghost, tol
+        
+        if do_reschedule:
+            Points.SchedulerStep(squaredlosses[step,:,0])
+        
         # Resample points
         if do_resample:
             Points.ResamplePoints(Domain, dev, problem_parameters)

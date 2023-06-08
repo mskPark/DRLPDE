@@ -44,14 +44,21 @@ class theDomain:
         list_of_periodic_ends = problem_parameters['Boundaries'][4]
         mesh = problem_parameters['Boundaries'][5]
 
+        # TODO Incorporate time dimension into domain and boundary measures
+        #if problem_parameters['input_dim'][1]:
+        #    x_dim = problem_parameters['input_dim'][0]
+        #    self.endtime = problem_parameters['input_range'][x_dim][1]
+        #else:
+        #    self.endtime = 1.0
+
         # Dirichlet walls
         self.wall = []
         for specs in list_of_walls:
             ### 2D walls
             if specs['type'] == 'line':
                 self.wall.append( bdry.line( endpoints = specs['endpoints'],
-                                                      normal = specs['normal'],
-                                                      bc = specs['boundary_condition'] ))
+                                             normal = specs['normal'],
+                                             bc = specs['boundary_condition'] ))
             
             if specs['type'] == 'circle':
                 self.wall.append( bdry.circle( centre = specs['centre'],
@@ -120,7 +127,7 @@ class theDomain:
             if specs['type'] == 'disk':
                 self.solid.append( bdry.disk( centre = specs['centre'],
                                                       radius = specs['radius'],
-                                                      bc = specs['boundary_condition'] ))
+                                                      bc = specs['boundary_condition']))
             
             if specs['type'] == 'solidball':
                 self.solid.append( bdry3d.ball( centre = specs['centre'],
@@ -225,6 +232,14 @@ class thePoints:
         bdry_lr = solver_parameters['bdry_lr']
 
         Linf_lr = 0
+        
+        threshold = 1e-1
+        lr_decay = lambda x : 0.1
+
+        # AdaM
+        # torch.optim.Adam(model.parameters(), lr=learningrate)
+        # SGD with momentum
+        # torch.optim.SGD(model.parameters(), lr=learningrate, momentum=0.9, dampening=0.9)
 
         # Interior Points
         self.toTrain = [InteriorPoints(num, domain, input_dim, input_range, dev)]
@@ -234,7 +249,8 @@ class thePoints:
         self.L2optimizers = [torch.optim.Adam(model.parameters(), lr=learningrate)]
         self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=Linf_lr)]
 
-        #self.scheduler = [torch.optim.lr_scheduler.MultiStepLR(self.L2optimizers[0], milestones=[500], gamma=0.1)]
+        self.scheduler = [torch.optim.lr_scheduler.MultiplicativeLR(self.L2optimizers[0], lr_lambda=lr_decay)]
+        self.lossthreshold = [threshold]
         
         self.reject = [torch.tensor([], dtype=torch.int64, device=dev)]
 
@@ -245,8 +261,12 @@ class thePoints:
             self.target.append(Dirichlet_target)
             self.var.append({'true':bdry.bc})
             self.integrate.append( bdry.integrate )
-            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
+            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=learningrate))
             self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
+
+            self.scheduler.append(torch.optim.lr_scheduler.MultiplicativeLR(self.L2optimizers[-1], lr_lambda=lr_decay))
+            self.lossthreshold.append(threshold)
+
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
 
         # TODO domain.inletoutlet
@@ -258,6 +278,10 @@ class thePoints:
             self.integrate.append(inletoutlet.integrate)
             self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
             self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
+
+            self.scheduler.append(torch.optim.lr_scheduler.MultiplicativeLR(self.L2optimizers[-1], lr_lambda=lr_decay))
+            self.lossthreshold.append(threshold)
+
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
         # TODO mesh
         for mesh in domain.mesh:
@@ -276,7 +300,7 @@ class thePoints:
             self.target.append(Dirichlet_target)
             self.var.append({'true':problem_parameters['IC']} )
             self.integrate.append( domain.integrate)
-            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
+            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=learningrate))
             self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
 
@@ -297,6 +321,8 @@ class thePoints:
             L2loss = torch.tensor(0.0, device=dev)
             Linfloss = torch.tensor( 0.0, device=dev)
 
+            #max_index = torch.tensor([], dtype=torch.long, device=dev)
+
             self.L2optimizers[ii].zero_grad()
             for X, index in Batch:
                 loss = self.target[ii](X.requires_grad_(), model, domain, **self.var[ii])
@@ -312,6 +338,8 @@ class thePoints:
                 if max > Linfloss:
                     max_index = index[jj]
                     Linfloss = max
+                else:
+                    max_index = index[0,None]
 
                 # Resample any indices that require it
                 if importance_sampling:
@@ -357,6 +385,14 @@ class thePoints:
                 indices = indices[self.reject[ii]]
             self.toTrain[ii].location[indices,:] = self.toTrain[ii].generate_points(indices.size(0), input_dim, input_range, domain).to(dev)
 
+    def SchedulerStep(self, losses):
+        for ii in range(self.numtype):
+            if losses[ii] < self.lossthreshold[ii]:
+                self.scheduler[ii].step()
+                self.lossthreshold[ii] = self.lossthreshold[ii]/10
+                print('Region {:d} learning rate lowered'.format(ii))
+
+
 ### Number of points along boundary
 ###   based on Mean Minimum Distance
 def num_points_wall(N, l, V, d, d0):
@@ -383,9 +419,8 @@ def find_resample(X, index, loss, resample_index, max):
     # Compare, if loss(x) < uniform
     # Then resample
 
-    check_sample = max*loss*torch.rand(X.size(0), device=X.device)
-
-    resample_index = torch.cat( (resample_index, index[loss[:,0] < check_sample]), dim=0)
+    check_sample = max*loss[:,0]*torch.rand(X.size(0), device=X.device)
+    resample_index = torch.cat( (resample_index, index[loss[:,0] < check_sample].to(X.device)), dim=0)
 
     return resample_index
 
