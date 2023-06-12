@@ -229,7 +229,9 @@ class thePoints:
         var_train = problem_parameters['var_train']
         interior_target = problem_parameters['InteriorTarget']
         learningrate = solver_parameters['learningrate']
-        bdry_lr = solver_parameters['bdry_lr']
+        
+        interior_weight = solver_parameters['interior_weight']
+        bdry_weight = solver_parameters['bdry_weight']
 
         Linf_lr = 0
         
@@ -252,7 +254,7 @@ class thePoints:
         self.target = [interior_target]
         self.var = [var_train]
         self.integrate = [domain.integrate]
-        self.weight = [1e0]
+        self.weight = [interior_weight]
         
         self.reject = [torch.tensor([], dtype=torch.int64, device=dev)]
 
@@ -264,7 +266,7 @@ class thePoints:
             self.var.append({'true':bdry.bc})
             self.integrate.append( bdry.integrate )
 
-            self.weight.append( 1e0 )
+            self.weight.append( bdry_weight )
 
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
 
@@ -276,7 +278,7 @@ class thePoints:
             self.var.append({'true':inletoutlet.bc})
             self.integrate.append(inletoutlet.integrate)
 
-            self.weight.append( 1e0 )
+            self.weight.append( bdry_weight)
 
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
         # TODO mesh
@@ -297,7 +299,7 @@ class thePoints:
             self.var.append({'true':problem_parameters['IC']} )
             self.integrate.append( domain.integrate)
 
-            self.weight.append( 1e0 )
+            self.weight.append( bdry_weight )
             
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
 

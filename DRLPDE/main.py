@@ -30,7 +30,8 @@ def define_solver_parameters(**solver):
                                       'num_ghost':64,
                                       'tol': 1e-6},
                          'learningrate': 1e-4,
-                         'bdry_lr': 1e-5,
+                         'interior_weight':1e0,
+                         'bdry_weight': 1e0,
                          'reschedule_every': 1.1,
                          'resample_every': 1.1,
                          'walk': False,              
@@ -271,7 +272,7 @@ def solvePDE(parameters='', **solver):
         pickle.dump(squaredlosses, handle, protocol=pickle.HIGHEST_PROTOCOL)
     if collect_error:
         with open('experiments/' + solver_parameters['savemodel'] + '_errors.pickle', 'wb' ) as handle:
-            pickle.dump(squaredlosses, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(squarederrors, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     # Save solver parameters
     with open('experiments/' + solver_parameters['savemodel'] + '_parameters.pickle', 'wb') as handle:
