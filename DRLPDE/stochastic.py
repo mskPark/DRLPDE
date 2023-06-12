@@ -221,7 +221,7 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
     Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
     # Make target
-    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0), Uold)/dt
+    Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2/dt
 
     return Loss
 
