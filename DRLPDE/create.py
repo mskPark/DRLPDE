@@ -236,6 +236,12 @@ class thePoints:
         threshold = 1e-1
         lr_decay = lambda x : 0.1
 
+        self.L2optimizers = torch.optim.Adam(model.parameters(), lr=learningrate)
+        self.Linfoptimizers = torch.optim.Adam(model.parameters(), lr=Linf_lr)
+
+        self.scheduler = torch.optim.lr_scheduler.MultiplicativeLR(self.L2optimizers, lr_lambda=lr_decay)
+        self.lossthreshold = threshold
+
         # AdaM
         # torch.optim.Adam(model.parameters(), lr=learningrate)
         # SGD with momentum
@@ -246,11 +252,7 @@ class thePoints:
         self.target = [interior_target]
         self.var = [var_train]
         self.integrate = [domain.integrate]
-        self.L2optimizers = [torch.optim.Adam(model.parameters(), lr=learningrate)]
-        self.Linfoptimizers = [torch.optim.Adam(model.parameters(), lr=Linf_lr)]
-
-        self.scheduler = [torch.optim.lr_scheduler.MultiplicativeLR(self.L2optimizers[0], lr_lambda=lr_decay)]
-        self.lossthreshold = [threshold]
+        self.weight = [1e0]
         
         self.reject = [torch.tensor([], dtype=torch.int64, device=dev)]
 
@@ -261,11 +263,8 @@ class thePoints:
             self.target.append(Dirichlet_target)
             self.var.append({'true':bdry.bc})
             self.integrate.append( bdry.integrate )
-            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=learningrate))
-            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
 
-            self.scheduler.append(torch.optim.lr_scheduler.MultiplicativeLR(self.L2optimizers[-1], lr_lambda=lr_decay))
-            self.lossthreshold.append(threshold)
+            self.weight.append( 1e0 )
 
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
 
@@ -276,11 +275,8 @@ class thePoints:
             self.target.append(Inletoutlet_target)
             self.var.append({'true':inletoutlet.bc})
             self.integrate.append(inletoutlet.integrate)
-            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=bdry_lr))
-            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
 
-            self.scheduler.append(torch.optim.lr_scheduler.MultiplicativeLR(self.L2optimizers[-1], lr_lambda=lr_decay))
-            self.lossthreshold.append(threshold)
+            self.weight.append( 1e0 )
 
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
         # TODO mesh
@@ -300,8 +296,9 @@ class thePoints:
             self.target.append(Dirichlet_target)
             self.var.append({'true':problem_parameters['IC']} )
             self.integrate.append( domain.integrate)
-            self.L2optimizers.append(torch.optim.Adam(model.parameters(), lr=learningrate))
-            self.Linfoptimizers.append(torch.optim.Adam(model.parameters(), lr=Linf_lr))
+
+            self.weight.append( 1e0 )
+            
             self.reject.append(torch.tensor([], dtype=torch.int64, device=dev))
 
         # How many points
@@ -311,6 +308,7 @@ class thePoints:
 
         losses = np.zeros( (self.numtype,2) )
 
+        self.L2optimizers.zero_grad()
         for ii in range(self.numtype):
 
             # Organize into batch
@@ -323,7 +321,6 @@ class thePoints:
 
             #max_index = torch.tensor([], dtype=torch.long, device=dev)
 
-            self.L2optimizers[ii].zero_grad()
             for X, index in Batch:
                 loss = self.target[ii](X.requires_grad_(), model, domain, **self.var[ii])
 
@@ -351,27 +348,28 @@ class thePoints:
                 L2loss += L2loss_batch
 
                 # Collect gradients on L2loss of each batch
-                L2loss_batch.backward()
+                (self.weight[ii]*L2loss_batch).backward()
+            losses[ii] = [L2loss.data.cpu().numpy(), Linfloss.data.cpu().numpy()]
 
-            # Step for L2 optimization
-            self.L2optimizers[ii].step()
+        # Step for L2 optimization
+        self.L2optimizers.step()
 
             # Train for Linf optimization
-            self.Linfoptimizers[ii].zero_grad()
+            #self.Linfoptimizers[ii].zero_grad()
 
-            argmax = self.toTrain[ii].location[max_index,:]
+            #argmax = self.toTrain[ii].location[max_index,:]
 
-            if self.output_dim > 1:
-                Linfloss = self.target[ii](argmax.requires_grad_(), model, domain, **self.var[ii])[0,kk]
-            else:
-                Linfloss = self.target[ii](argmax.requires_grad_(), model, domain, **self.var[ii])
+            #if self.output_dim > 1:
+            #    Linfloss = self.target[ii](argmax.requires_grad_(), model, domain, **self.var[ii])[0,kk]
+            #else:
+            #    Linfloss = self.target[ii](argmax.requires_grad_(), model, domain, **self.var[ii])
 
-            Linfloss.backward()
+            #Linfloss.backward()
             
             # Step for Linf optimization
-            self.Linfoptimizers[ii].step()
+            #self.Linfoptimizers[ii].step()
 
-            losses[ii] = [L2loss.data.cpu().numpy(), Linfloss.data.cpu().numpy()]
+       
 
         return losses
 
