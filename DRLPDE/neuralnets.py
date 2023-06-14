@@ -248,9 +248,10 @@ class FeedForwardNN(nn.Module):
         
         modules = []
         modules.append(nn.Linear(self.input_dim, width))
+        modules.append(nn.ReLU())
         for i in range(depth - 1):
             modules.append(nn.Linear(width, width))
-            modules.append(nn.Tanh())
+            modules.append(nn.ReLU())
         modules.append(nn.Linear(width, output_dim))
         
         self.sequential_model = nn.Sequential(*modules)
