@@ -222,6 +222,8 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
 
     # Make target
     Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2/dt
+    #Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2
+    #Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2/(dt**2)
 
     return Loss
 
