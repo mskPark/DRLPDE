@@ -424,7 +424,6 @@ def find_resample(X, index, loss, resample_index, max):
 
     return resample_index
 
-# TODO
 class forError():
 
     def __init__(self, num, domain, problem_parameters, dev):

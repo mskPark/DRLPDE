@@ -1,6 +1,5 @@
-python
-math
-numpy
-torch
-matplotlib
-scipy
+python==3.10.4
+numpy==1.22.3
+torch==1.11.0+cu113
+matplotlib==3.5.1
+scipy==1.8.0

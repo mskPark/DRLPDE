@@ -23,6 +23,7 @@ class IncompressibleNN(nn.Module):
         
         modules = []
         modules.append(nn.Linear(self.input_dim, width))
+        modules.append(nn.Tanh())
         for i in range(depth - 1):
             modules.append(nn.Linear(width, width))
             modules.append(nn.Tanh())
@@ -248,10 +249,10 @@ class FeedForwardNN(nn.Module):
         
         modules = []
         modules.append(nn.Linear(self.input_dim, width))
-        modules.append(nn.ReLU())
+        modules.append(nn.Tanh())
         for i in range(depth - 1):
             modules.append(nn.Linear(width, width))
-            modules.append(nn.ReLU())
+            modules.append(nn.Tanh())
         modules.append(nn.Linear(width, output_dim))
         
         self.sequential_model = nn.Sequential(*modules)
@@ -267,30 +268,78 @@ class ResNetNN(nn.Module):
     ###
     ### Non-adaptive layers
     
-    def __init__(self, depth, width, x_dim, is_unsteady, output_dim, **nn_param):
+    def __init__(self,  input_dim, output_dim, depth, width, **nn_param):
         super(ResNetNN, self).__init__()
         
-        input_dim = x_dim + is_unsteady
+        self.input_dim = sum(input_dim)
+
+        self.depth = depth
+        self.width = width
         
-        self.ff_in = nn.Linear(input_dim,depth)
-        self.ff_hid = nn.Linear(depth,depth)
-        self.ff_out = nn.Linear(depth,output_dim)
-        self.activ = nn.Tanh()
-        self.numblocks = width
+        self.activate = nn.Tanh()
+        self.skip = nn.Identity()
+
+        self.first = nn.Linear(self.input_dim, width)
+        self.hidden = nn.Linear(width, width)
+        self.last = nn.Linear(width, output_dim)
+
         
     def forward(self, x):
-        out = self.activ( self.ff_in(x))
-        
-        for ii in range(self.numblocks):
-            identity = out
-            out = self.activ(self.ff_hid(out))
-            out = self.ff_hid(out)
-            out = out + identity
-            out = self.activ(out)
-
-        a = self.ff_out(out)
-
+        a = self.activate(self.first(x))
+        for i in range(self.depth - 1):
+            a = self.activate(self.hidden(a)) + a
+        a = self.last(a)
         return a
+    
+class ResNetIncompressible(nn.Module):
+    
+    ### ResNet + Curl
+    ###
+    ### Non-adaptive layers
+    
+    def __init__(self,  input_dim, output_dim, depth, width, **nn_param):
+        super(ResNetIncompressible, self).__init__()
+        
+        self.input_dim = sum(input_dim)
+        self.x_dim = input_dim[0]
+
+        self.depth = depth
+        self.width = width
+        
+        self.activate = nn.Tanh()
+        self.skip = nn.Identity()
+
+        self.first = nn.Linear(self.input_dim, width)
+        self.hidden = nn.Linear(width, width)
+        self.last = nn.Linear(width, output_dim)
+
+    def curl(self, a, x):
+        if self.x_dim == 2:
+            dadx = torch.autograd.grad(a, x, grad_outputs = torch.ones_like(a), 
+                                        create_graph = True, retain_graph = True)[0]
+            u = torch.stack([dadx[:,1], -dadx[:,0]] , dim=1)
+            
+        elif self.x_dim == 3:
+            e = torch.eye(self.x_dim, device=x.device)
+
+            da0dx = torch.autograd.grad(a, x, grad_outputs=e[0,:].repeat(a.size(0), 1), 
+                                        create_graph=True, retain_graph = True)[0]
+            da1dx = torch.autograd.grad(a, x, grad_outputs=e[1,:].repeat(a.size(0), 1),
+                                        create_graph=True, retain_graph = True)[0]
+            da2dx = torch.autograd.grad(a, x, grad_outputs=e[2,:].repeat(a.size(0), 1),
+                                        create_graph=True, retain_graph = True)[0]
+
+            u = torch.stack([da2dx[:,1] - da1dx[:,2], da0dx[:,2] - da2dx[:,0], da1dx[:,0] - da0dx[:,1] ], dim=1)         
+        return u
+
+    def forward(self, x):
+        a = self.activate(self.first(x))
+        for i in range(self.depth - 1):
+            a = self.activate(self.hidden(a)) + a
+        a = self.last(a)
+
+        u = self.curl(a,x)
+        return u
 
 
 
