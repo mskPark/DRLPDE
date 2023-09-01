@@ -193,7 +193,6 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
     ### X: (x,y,z,hyper)
     ### model: u
 
-
     # Xnew = X repeated
     Xnew = X.clone().detach().repeat(num_ghost,1)
 
@@ -326,8 +325,8 @@ def walk(IntPoints, num, model, domain, dev, input_dim, input_range, x_dim, diff
     num = IntPoints.num_pts
 
     # Evaluate at X
-    Uold = model(X)
-
+    Uold = model(X.requires_grad_())
+    
     # Diffusion coefficient
     mu = diffusion(X).detach()
     
@@ -343,7 +342,7 @@ def walk(IntPoints, num, model, domain, dev, input_dim, input_range, x_dim, diff
         outside_bdry = bdry.distance(Xnew[:,:x_dim]) < 0
         if any(outside_bdry):
             Xnew[outside_bdry,:x_dim] = IntPoints.generate_points(torch.sum(outside_bdry), input_dim, input_range, domain).to(dev)
-
+    
     return Xnew.detach()
 
 def move_steadySDE():

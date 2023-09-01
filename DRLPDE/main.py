@@ -21,17 +21,17 @@ def define_solver_parameters(**solver):
 
     solver_parameters = {'savemodel': now.strftime('%b%d_%I%M%p'),
                          'loadmodel': '',
-                         'numpts': 2**14,
+                         'numpts': 2**13,
                          'numbatch': 2**12,
                          'trainingsteps': 1e3,
                          'neuralnetwork':'FeedForward',
                          'nn_size':{'depth':4,
                                     'width':64},
                          'method': {'type':'stochastic',
-                                      'dt':1e-3,
+                                      'dt':5e-4,
                                       'num_ghost':64,
                                       'tol': 1e-6},
-                         'learningrate': 1e-3,
+                         'learningrate': 1e-4,
                          'interior_weight':1e0,
                          'bdry_weight': 1e-2,
                          'reschedule_every': 1.1,
@@ -40,7 +40,7 @@ def define_solver_parameters(**solver):
                          'importance_sampling': False
                            }
     
-    ## 'method': {'type': 'stochastic', 'dt':1e-4, 'num_ghost':128, 'tol':1e-6}
+    ## 'method': {'type': 'stochastic', 'dt':1e-3, 'num_ghost':64, 'tol':1e-6}
     #          : {'type': 'autodiff'}
     #          : {'type': 'direct}
 
@@ -160,6 +160,10 @@ def define_neuralnetwork(problem_parameters, solver_parameters):
         MyNeuralNetwork = neuralnets.FeedForwardNN
     elif solver_parameters['neuralnetwork'] == 'Incompressible':
         MyNeuralNetwork = neuralnets.IncompressibleNN
+    elif solver_parameters['neuralnetwork'] == 'ResNet':
+        MyNeuralNetwork = neuralnets.ResNetNN
+    elif solver_parameters['neuralnetwork'] == 'ResNetIncompressible':
+        MyNeuralNetwork = neuralnets.ResNetIncompressible
 
     nn_size = solver_parameters['nn_size']
 
