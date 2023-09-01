@@ -48,7 +48,7 @@ def unsteadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_
 
     # Calculate exits and re-evaluate
     Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
-    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, tol)
+    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, dt)
 
     # Calculate Loss = Residual Squared Error
     Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0), Uold )
@@ -133,7 +133,7 @@ def unsteadyNavierStokes(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
     if any(domain.inletoutlet):
         Xnew[:,:x_dim] = exit_inletoutlet(X.repeat(num_ghost,1), Xnew[:,:x_dim], domain.inletoutlet, x_dim, tol)
 
-    Xnew, UPnew = exit_ic(X.repeat(num_ghost,1), Xnew, UPnew, ic, x_dim, tol)
+    Xnew, UPnew = exit_ic(X.repeat(num_ghost,1), Xnew, UPnew, ic, x_dim, dt)
     
     # Evaluate grad(p) at Xnew
     gradPnew = ad.gradient(UPnew[:,-1], Xnew)[:,:x_dim]
@@ -259,7 +259,7 @@ def Heat(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **
     # Calculate exits and re-evaluate
     Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
-    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, tol)
+    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, dt)
 
     # Make target
     Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0), Uold)
@@ -356,6 +356,26 @@ def move_unsteadySDE():
 
 ### Exit Calculations
 
+def exit_bc_maxsample(Xold, Xnew, Unew, boundary, x_dim, dt):
+    ### Calculate boundary exits and enforce boundary condition
+    
+    # If you want to record which walkers exited
+    #outside = torch.zeros( Xnew.size(0), dtype=torch.bool, device=Xnew.device)
+
+    for bdry in boundary:
+        distance_diff = bdry.distance(Xnew[:,:x_dim]) -  bdry.distance(Xold[:,:x_dim])
+        do_maxsample = 0.5*( distance_diff + torch.sqrt( distance_diff**2 + 2*dt*np.random.exponential(1.0, Xold.size(1)) ) ) > bdry.distance(Xold[:,:x_dim])
+        
+        if torch.sum(do_maxsample) > 0:
+            ### Recursive bisection to get close to exit location up to tolerance tol
+
+            Xnew[do_maxsample,:x_dim] = maxsampling(Xold[maxsampling,:x_dim], Xnew[maxsampling,:x_dim], bdry)
+            Unew[do_maxsample,:] = bdry.bc(Xnew[do_maxsample,:])
+            
+        #outside += outside_bdry
+
+    return Xnew, Unew
+
 def exit_bc(Xold, Xnew, Unew, boundary, x_dim, tol):
     ### Calculate boundary exits and enforce boundary condition
     
@@ -363,28 +383,26 @@ def exit_bc(Xold, Xnew, Unew, boundary, x_dim, tol):
     #outside = torch.zeros( Xnew.size(0), dtype=torch.bool, device=Xnew.device)
     
     for bdry in boundary:
-        
         outside_bdry = bdry.distance(Xnew[:,:x_dim]) < 0
         if torch.sum(outside_bdry) > 0:
             ### Recursive bisection to get close to exit location up to tolerance tol
 
-            Xnew[outside_bdry,:x_dim] = find_bdry_exit(Xold[outside_bdry,:x_dim], Xnew[outside_bdry,:x_dim], bdry, tol)
+            Xnew[outside_bdry,:x_dim] = bisection(Xold[outside_bdry,:x_dim], Xnew[outside_bdry,:x_dim], bdry, tol)
             Unew[outside_bdry,:] = bdry.bc(Xnew[outside_bdry,:])
             
         #outside += outside_bdry
 
     return Xnew, Unew
 
-def exit_ic(Xold, Xnew, Unew, initial_con, x_dim, tol):
+def exit_ic(Xold, Xnew, Unew, initial_con, x_dim, dt):
     ### Check for time = 0
-    ###     Should we take a point at the initial time (by projecting or something)
-    ###     or is within tol good enough?
+    ###     Bisection is straightforward, interpolate between Xold and Xnew using time at Xold divided by dt
 
     # If you want to record which walkers exited
     #outside = torch.zeros( Xnew.size(0), dtype=torch.bool, device=Xnew.device)
-    
+
     hit_initial = Xnew[:,x_dim] < 0
-    Xnew[hit_initial,:] = find_time_exit(Xold[hit_initial,:], Xnew[hit_initial,:], tol)
+    Xnew[hit_initial,:] = (Xold[hit_initial,x_dim]/dt)*(Xnew[hit_initial,:] - Xold[hit_initial,:]) + Xold[hit_initial,:]
     Unew[hit_initial,:] = initial_con(Xnew[hit_initial,:])
 
     #outside += hit_initial
@@ -401,12 +419,12 @@ def exit_inletoutlet(Xold, Xnew, inletoutlet, x_dim, tol):
         outside_bdry = bdry.distance(Xnew[:,:x_dim]) < 0
         if torch.sum(outside_bdry) > 0:
             ### Bisection to get close to exit location up to tolerance tol
-            Xnew[outside_bdry,:x_dim] = find_bdry_exit(Xold[outside_bdry,:x_dim], Xnew[outside_bdry,:x_dim], bdry, tol)
+            Xnew[outside_bdry,:x_dim] = bisection(Xold[outside_bdry,:x_dim], Xnew[outside_bdry,:x_dim], bdry, tol)
         
         #outside += outside_bdry
     return Xnew
 
-def find_bdry_exit(Xold, Xnew, bdry, tol):
+def bisection(Xold, Xnew, bdry, tol):
     ### Bisection algorithm to find the exit between Xnew and Xold up to a tolerance 
     
     Xmid = (Xnew + Xold)/2
@@ -421,27 +439,18 @@ def find_bdry_exit(Xold, Xnew, bdry, tol):
     if torch.sum(inside + outside) > 0:
         Xnew[outside,:] = Xmid[outside,:]
         Xold[inside,:] = Xmid[inside,:]
-        Xmid[inside + outside,:] = find_bdry_exit(Xold[inside + outside,:], Xnew[inside + outside,:], bdry, tol)
+        Xmid[inside + outside,:] = bisection_x(Xold[inside + outside,:], Xnew[inside + outside,:], bdry, tol)
 
     return Xmid
 
-def find_time_exit(Xold, Xnew, tol):
-    ### Bisection algorithm to find the time exit up to a tolerance
-    
-    Xmid = (Xnew + Xold)/2
+def maxsampling(Xold, Xnew, bdry):
+    l =  -bdry.distance(Xnew)/ ( bdry.distance(Xold) - bdry.distance(Xnew) )
+    exit = l*Xold + (1-l)*Xnew 
 
-    # above tolerance = inside
-    # below tolerance = outside
-    above_tol = Xmid[:,2] > tol
-    below_tol = Xmid[:,2] < -tol
+    # Project onto the boundary
+    exit = bdry.project(exit)
 
-    if torch.sum(above_tol + below_tol) > 0:
-        Xnew[below_tol,:] = Xmid[below_tol,:]
-        Xold[above_tol,:] = Xmid[above_tol,:]
-        
-        Xmid[above_tol + below_tol,:] = find_time_exit(Xold[above_tol + below_tol,:], Xnew[above_tol + below_tol,:], tol)
-
-    return Xmid
+    return exit
 
 def exit_periodic(Xnew, periodic_boundaries):
     

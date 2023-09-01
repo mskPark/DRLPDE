@@ -8,35 +8,6 @@ Explore the domain, evaluate how well we're doing, improve the estimate
 - Mesh-free
 - Hyperparameters to train a family of solutions
 
-#### How to use
-- 
-
-#### TODO
-- Improve stability
-- Importance sampling
-- Guaranteed accuracy (Very hard, dependent on a lot of parameters)
-    + Size/Architecture of neural network
-    + Measure accuracy through...
-      - If PDE satisfied up to L2 error, is solution also within L2 error?
-
-Domain description
-- Boundary curves/surfaces (inside/outside by signed distance function) 
-    Type I, Type II, Type III regions
-  
-  TODO: Use parametric equations vs level set
-  Parametric equations
-  + Sample and move along boundary easily
-  - Hard to make signed distance function (specify normal vector, have to do an fsolve)
-  Level set
-  + Easy to make signed distance function
-  - Hard to move along boundary (sampling is doable for type 1 / type 2 curves)
-
-## Ideas
-
-Continuation methods
-  + Solve the linear problem. Use that as an initial guess for the non-linear problem.
-  + Need a ramp up parameter
-
 ## Pseudocode
 
 Define the problem
