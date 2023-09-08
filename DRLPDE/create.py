@@ -396,7 +396,7 @@ class thePoints:
 ### Number of points along boundary
 ###   based on Mean Minimum Distance
 def num_points_wall(N, l, V, d, d0):
-    Nw = int( 4*torch.round( (l/V)**(d0/2) * N**(d0/d) ).detach().numpy() + 1 )
+    Nw = int( 10*torch.round( (l/V)**(d0/2) * N**(d0/d) ).detach().numpy() + 1 )
     return Nw
 
 def Dirichlet_target(X, model, domain, true, **var):

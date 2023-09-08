@@ -262,11 +262,34 @@ class FeedForwardNN(nn.Module):
         
         return a
 
+class ResidualBlock(nn.Module):
+    def __init__(self):
+        super(ResidualBlock,self).__init__()
+        self.lin = nn.Linear(64,64)
+        self.activate = nn.Tanh()
+
+    def forward(self, x):
+        temp = x
+
+        u = self.lin(x)
+        u = self.activate(u)
+
+        u = self.lin(u)
+        u  = self.activate(u)
+
+        u = self.lin(u)
+        u = self.activate(u)
+
+        u = u + temp
+
+        return u
+
+
 class ResNetNN(nn.Module):
     
     ### ResNet
     ###
-    ### Non-adaptive layers
+    ### 4 residual blocks
     
     def __init__(self,  input_dim, output_dim, depth, width, **nn_param):
         super(ResNetNN, self).__init__()
@@ -277,25 +300,40 @@ class ResNetNN(nn.Module):
         self.width = width
         
         self.activate = nn.Tanh()
-        self.skip = nn.Identity()
+        self.identity = nn.Identity()
 
+        self.block1 = self.make_block()
+        self.block2 = self.make_block()
+        self.block3 = self.make_block()
+        self.block4 = self.make_block()
+        
         self.first = nn.Linear(self.input_dim, width)
-        self.hidden = nn.Linear(width, width)
+
         self.last = nn.Linear(width, output_dim)
 
-        
+    def make_block(self):
+        block = []
+        block.append(nn.Linear(self.width, self.width))
+        block.append(nn.Tanh())
+        return nn.Sequential(*block)
+
     def forward(self, x):
         a = self.activate(self.first(x))
-        for i in range(self.depth - 1):
-            a = self.activate(self.hidden(a)) + a
+        
+        a = self.identity(a) + self.block1(a)
+        a = self.identity(a) + self.block2(a)
+        a = self.identity(a) + self.block3(a)
+        a = self.identity(a) + self.block4(a)
+
         a = self.last(a)
+        
         return a
     
 class ResNetIncompressible(nn.Module):
     
     ### ResNet + Curl
     ###
-    ### Non-adaptive layers
+    ### 4 residual blocks
     
     def __init__(self,  input_dim, output_dim, depth, width, **nn_param):
         super(ResNetIncompressible, self).__init__()
@@ -307,11 +345,22 @@ class ResNetIncompressible(nn.Module):
         self.width = width
         
         self.activate = nn.Tanh()
-        self.skip = nn.Identity()
+        self.identity = nn.Identity()
+
+        self.block1 = self.make_block()
+        self.block2 = self.make_block()
+        self.block3 = self.make_block()
+        self.block4 = self.make_block()
 
         self.first = nn.Linear(self.input_dim, width)
-        self.hidden = nn.Linear(width, width)
-        self.last = nn.Linear(width, output_dim)
+
+        self.last = nn.Linear(width, output_dim)        
+
+    def make_block(self):
+        block = []
+        block.append(nn.Linear(self.width, self.width))
+        block.append(nn.Tanh())
+        return nn.Sequential(*block)
 
     def curl(self, a, x):
         if self.x_dim == 2:
@@ -334,8 +383,12 @@ class ResNetIncompressible(nn.Module):
 
     def forward(self, x):
         a = self.activate(self.first(x))
-        for i in range(self.depth - 1):
-            a = self.activate(self.hidden(a)) + a
+        
+        a = self.identity(a) + self.block1(a)
+        a = self.identity(a) + self.block2(a)
+        a = self.identity(a) + self.block3(a)
+        a = self.identity(a) + self.block4(a)
+
         a = self.last(a)
 
         u = self.curl(a,x)

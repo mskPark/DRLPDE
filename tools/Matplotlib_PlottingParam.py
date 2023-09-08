@@ -43,3 +43,14 @@ ax[0,0].text(-1.675,
              0,
              r'$t=0$',
              fontsize=10)
+
+## Example of using torch viz to show the computational graph
+from torchviz import make_dot
+import DRLPDE.neuralnets
+import torch
+
+model = DRLPDE.neuralnets.ResNetNN([2,0,0], 1, 3, 20)
+
+x = torch.randn((10,2))
+
+make_dot(model(x), params = dict(model.named_parameters()))

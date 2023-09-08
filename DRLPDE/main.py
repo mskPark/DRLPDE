@@ -11,8 +11,8 @@ import DRLPDE.stochastic as stochastic
 
 ### Pytorch default datatype is float32, to change, uncomment the line below
 
-#torch.set_default_dtype(torch.float32)
-torch.set_default_dtype(torch.float64)
+torch.set_default_dtype(torch.float32)
+#torch.set_default_dtype(torch.float64)
 
 def define_solver_parameters(**solver):
 
@@ -21,28 +21,28 @@ def define_solver_parameters(**solver):
 
     solver_parameters = {'savemodel': now.strftime('%b%d_%I%M%p'),
                          'loadmodel': '',
-                         'numpts': 2**13,
-                         'numbatch': 2**12,
-                         'trainingsteps': 1e3,
+                         'numpts': 2**11,
+                         'numbatch': 2**11,
+                         'trainingsteps': 2e4,
                          'neuralnetwork':'FeedForward',
                          'nn_size':{'depth':4,
                                     'width':64},
                          'method': {'type':'stochastic',
-                                      'dt':5e-4,
+                                      'dt':1e-4,
                                       'num_ghost':64,
                                       'tol': 1e-6},
-                         'learningrate': 1e-4,
+                         'learningrate': 1e-3,
                          'interior_weight':1e0,
-                         'bdry_weight': 1e-2,
+                         'bdry_weight': 1e-1,
                          'reschedule_every': 1.1,
-                         'resample_every': 1.1,
+                         'resample_every': 10,
                          'walk': False,              
                          'importance_sampling': False
                            }
     
     ## 'method': {'type': 'stochastic', 'dt':1e-3, 'num_ghost':64, 'tol':1e-6}
     #          : {'type': 'autodiff'}
-    #          : {'type': 'direct}
+    #          : {'type': 'direct'}
 
     ## Additional Parameters to add
     ##

@@ -220,8 +220,8 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
     Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
     # Make target
-    Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2/dt
-    #Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2
+    #Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2/dt
+    Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2
     #Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2/(dt**2)
 
     return Loss
@@ -401,7 +401,8 @@ def exit_ic(Xold, Xnew, Unew, initial_con, x_dim, dt):
     #outside = torch.zeros( Xnew.size(0), dtype=torch.bool, device=Xnew.device)
 
     hit_initial = Xnew[:,x_dim] < 0
-    Xnew[hit_initial,:] = (Xold[hit_initial,x_dim]/dt)*(Xnew[hit_initial,:] - Xold[hit_initial,:]) + Xold[hit_initial,:]
+
+    Xnew[hit_initial,:] = (Xold[hit_initial,x_dim,None]/dt)*(Xnew[hit_initial,:] - Xold[hit_initial,:]) + Xold[hit_initial,:]
     Unew[hit_initial,:] = initial_con(Xnew[hit_initial,:])
 
     #outside += hit_initial
@@ -438,7 +439,7 @@ def bisection(Xold, Xnew, bdry, tol):
     if torch.sum(inside + outside) > 0:
         Xnew[outside,:] = Xmid[outside,:]
         Xold[inside,:] = Xmid[inside,:]
-        Xmid[inside + outside,:] = bisection_x(Xold[inside + outside,:], Xnew[inside + outside,:], bdry, tol)
+        Xmid[inside + outside,:] = bisection(Xold[inside + outside,:], Xnew[inside + outside,:], bdry, tol)
 
     return Xmid
 

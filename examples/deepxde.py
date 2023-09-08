@@ -1,8 +1,8 @@
 ###
 ### Example 1: Harmonic function
-###                 u(x,y) = 5.1*( x - 0.87 )^2 - 5.1*( y + 0.34 )^2
+###                 u(x,y) = x^2 -  y^2
 ###            on a polar region 
-###                 r = 0.72*cos^5(theta) + 1.2
+###                 r = 1
 ###
 
 import torch
@@ -17,7 +17,7 @@ num_error = 2**15
 
 if collect_error:
     def true_fun(X):
-        ubdry = 5.1*( X[:,0] - 0.87 )**2 - 5.1*( X[:,1] + 0.34 )**2
+        ubdry =  X[:,0]**2 -X[:,1]**2
         return ubdry[:,None]
 
 ############## Save model and/or Load model ##############
@@ -71,32 +71,21 @@ def reaction(X):
 # Use pytorch expressions to make boundary and initial conditions 
 
 def bdry_con(X):
-    ubdry = 5.1*( X[:,0] - 0.87 )**2 - 5.1*( X[:,1] + 0.34 )**2
+    ubdry = X[:,0]**2 - X[:,1]**2
     return ubdry[:,None]
 
 
 #################  Make the domain  #######################
 
-boundingbox = [ [-1.0, 2.0], [-1.5, 1.5] ]
+boundingbox = [ [-1.1,1.1], [-1.1,1.1] ]
 
-def polar_eq(theta):
-    r = 0.72*( torch.cos(theta)**5) + 1.2
-    return r
+ring1 = {   'type':'ring',
+            'centre': [0.0 ,0.0],
+            'radius': 1.0,
+            'endpoints': [],
+            'boundary_condition':bdry_con }
 
-def dr(theta):
-    dr = -5*0.72*( torch.cos(theta)**4 )*torch.sin(theta)
-    return dr
-
-polar = {'type':'polar',
-         'equation': polar_eq,
-         'derivative': dr,
-         'boundary_condition': bdry_con}
-
-box = { 'type': 'box',
-        'xinterval': [ 0.0, 1.0],
-        'yinterval': [-1.0, 1.0]}
-
-list_of_walls = [polar]
+list_of_walls = [ring1]
 list_of_periodic_ends =[]
 solid_walls = []
 inlet_outlet = []
