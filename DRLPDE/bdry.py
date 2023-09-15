@@ -5,20 +5,15 @@ import numpy as np
 # 1-Dimensional Walls
 
 # Removed: Checking other walls to see if outside
-# Walls must be non-overlapping
+#          Walls must be non-overlapping
+#          Code for checking if outside other bdrys and remake bdry points
+# outside = torch.zeros(Xwall.size(0), dtype=torch.bool)
+# for bdry in other_bdrys:
+#     outside += bdry.distance(Xwall) < 0
+# if any(outside):
+#     Xwall[outside,:] = self.make_points(torch.sum(outside), other_bdrys)
 
-    # For checking if outside other bdrys
-    # and remake bdry points
-
-    #outside = torch.zeros(Xwall.size(0), dtype=torch.bool)
-
-    #for bdry in other_bdrys:
-    #    outside += bdry.distance(Xwall) < 0
-    
-    #if any(outside):
-    #    Xwall[outside,:] = self.make_points(torch.sum(outside), other_bdrys)
-
-
+# 
 class circle:
     ### Class structure for a circle boundary, the outside being the domain
     def __init__(self, centre, radius, bc):
@@ -47,6 +42,11 @@ class circle:
         distance = (torch.norm( X[:,:2] - self.centre.to(X.device),dim=1) - self.radius)
 
         return distance
+    
+    def project(self,X):
+        ### Projects the point X onto the boundary
+        Xproj = self.centre.to(X.device) + X/self.distance(X)
+        return Xproj 
     
     def integrate(self, X, num, F):
         integral = self.measure*torch.sum(F)/num
@@ -80,6 +80,11 @@ class ring:
 
         return distance
     
+    def project(self,X):
+        ### Projects the point X onto the boundary
+        Xproj = self.centre.to(X.device) + X/self.distance(X)
+        return Xproj
+
     def integrate(self, X, num, F):
         integral = self.measure*torch.sum(F)/num
         return integral

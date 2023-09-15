@@ -21,9 +21,9 @@ def define_solver_parameters(**solver):
 
     solver_parameters = {'savemodel': now.strftime('%b%d_%I%M%p'),
                          'loadmodel': '',
-                         'numpts': 2**11,
+                         'numpts': 2**13,
                          'numbatch': 2**11,
-                         'trainingsteps': 2e4,
+                         'trainingsteps': 1e4,
                          'neuralnetwork':'FeedForward',
                          'nn_size':{'depth':4,
                                     'width':64},
@@ -35,9 +35,10 @@ def define_solver_parameters(**solver):
                          'interior_weight':1e0,
                          'bdry_weight': 1e-1,
                          'reschedule_every': 1.1,
-                         'resample_every': 10,
-                         'walk': False,              
-                         'importance_sampling': False
+                         'resample_every': 1.1,
+                         'walk': True,              
+                         'importance_sampling': False,
+                         'collect_losses': 1.1
                            }
     
     ## 'method': {'type': 'stochastic', 'dt':1e-3, 'num_ghost':64, 'tol':1e-6}
@@ -204,6 +205,9 @@ def solvePDE(parameters='', **solver):
     walk = solver_parameters['walk']
     importance_sampling = solver_parameters['importance_sampling']
     reschedule_every = solver_parameters['reschedule_every']
+
+    collect_losses = solver_parameters['collect_losses']
+
     print_every = round(trainingsteps/10)
 
     ### Neural Network
@@ -221,12 +225,13 @@ def solvePDE(parameters='', **solver):
     # squaredlosses[:, :, 0] = L2 squared loss
     # squaredlosses[:, :, 1] = Linf squared loss
 
+    
     squaredlosses = np.ones((trainingsteps, Points.numtype, 2))
 
     # TODO Collect errors
     collect_error = problem_parameters['error']['collect_error']
     if collect_error:
-        squarederrors = np.ones((trainingsteps+1, Points.numtype, 2))
+        squarederrors = np.ones((trainingsteps, Points.numtype, 2))
         ErrorPoints = create.forError(problem_parameters['error']['num_error'],
                                       Domain,
                                       problem_parameters,
@@ -245,10 +250,12 @@ def solvePDE(parameters='', **solver):
         
         do_reschedule = step % reschedule_every == 0
         do_resample = step % resample_every == 0
-        squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
+
+        if collect_loss:
+            squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
         
         if collect_error:
-            squarederrors[step+1,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
+            squarederrors[step,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
 
         if walk:
             Points.toTrain[0].location = stochastic.walk( Points.toTrain[0], num, model, Domain, dev,

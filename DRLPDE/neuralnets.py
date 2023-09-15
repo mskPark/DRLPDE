@@ -298,6 +298,8 @@ class ResNetNN(nn.Module):
 
         self.depth = depth
         self.width = width
+
+        self.output_dim = output_dim
         
         self.activate = nn.Tanh()
         self.identity = nn.Identity()
@@ -309,7 +311,7 @@ class ResNetNN(nn.Module):
         
         self.first = nn.Linear(self.input_dim, width)
 
-        self.last = nn.Linear(width, output_dim)
+        self.last = nn.Linear(width, self.output_dim)
 
     def make_block(self):
         block = []
@@ -340,6 +342,10 @@ class ResNetIncompressible(nn.Module):
         
         self.input_dim = sum(input_dim)
         self.x_dim = input_dim[0]
+        if self.x_dim == 3:
+            self.output_dim = 3
+        else:
+            self.output_dim = 1
 
         self.depth = depth
         self.width = width
@@ -354,7 +360,7 @@ class ResNetIncompressible(nn.Module):
 
         self.first = nn.Linear(self.input_dim, width)
 
-        self.last = nn.Linear(width, output_dim)        
+        self.last = nn.Linear(width, self.output_dim)        
 
     def make_block(self):
         block = []

@@ -86,9 +86,79 @@ def steadyViscousBurgers(X, model, domain, x_dim, diffusion, forcing, dt, num_gh
     # Calculate exits and re-evaluate
     Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
-    # Calculate Loss = Residual Squared Error
-    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0), Uold )
+    force = dt/2 *( forcing(X) + forcing(Xnew).reshape(num_ghost, X.size(0), x_dim).mean(0) ).detach()
 
+    # Calculate Loss = Residual Squared Error
+    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0) +  force, Uold )
+
+    return Loss
+
+def unsteadypressure(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, velocity, **var_train):
+    Xnew = X.clone().detach().repeat(num_ghost,1)
+
+    # Evaluate at X
+    Uold = velocity(X)
+    Pold = model(X)
+
+    # Diffusion coefficient
+    mu = diffusion(X)
+    
+    if mu.size():
+        mu = mu[:,None].repeat(num_ghost,1)
+
+    # Move walkers
+    # TODO: Implement higher order SDE simulation
+    Xnew[:,:x_dim] = Xnew[:,:x_dim] - dt*Uold.repeat(num_ghost,1) + torch.sqrt(2*dt*mu)*torch.randn((Xnew.size(0), x_dim), device=X.device, requires_grad=True)
+    Xnew[:,x_dim] = Xnew[:,x_dim] - dt
+
+    # Periodic boundaries
+    if any(domain.periodic):
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+
+    # Evaluate at Xnew
+    Unew = velocity(Xnew)
+
+    # Calculate exits and re-evaluate
+    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
+    Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, dt)
+
+    Pnew = model(Xnew)
+
+    # Calculate Loss = Residual Squared Error
+    Loss = SquaredError( 1/dt*( Unew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0) - Uold) + Pnew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0), Pold )
+    return Loss
+
+def steadypressure(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, velocity, **var_train):
+    Xnew = X.clone().detach().repeat(num_ghost,1)
+
+    # Evaluate at X
+    Uold = velocity(X)
+    Pold = model(X)
+
+    # Diffusion coefficient
+    mu = diffusion(X)
+    
+    if mu.size():
+        mu = mu[:,None].repeat(num_ghost,1)
+
+    # Move walkers
+    # TODO: Implement higher order SDE simulation
+    Xnew[:,:x_dim] = Xnew[:,:x_dim] - dt*Uold.repeat(num_ghost,1) + torch.sqrt(2*dt*mu)*torch.randn((Xnew.size(0), x_dim), device=X.device, requires_grad=True)
+
+    # Periodic boundaries
+    if any(domain.periodic):
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+
+    # Evaluate at Xnew
+    Unew = velocity(Xnew)
+
+    # Calculate exits and re-evaluate
+    Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
+
+    Pnew = model(Xnew)
+
+    # Calculate Loss = Residual Squared Error
+    Loss = SquaredError( 1/dt*( Unew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0) - Uold) + Pnew.detach().reshape(num_ghost, X.size(0), x_dim).mean(0), Pold )
     return Loss
 
 ### Full Navier-Stokes:
@@ -219,10 +289,10 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
     # Calculate exits and re-evaluate
     Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
+    force = dt/2 *( forcing(X) + forcing(Xnew).reshape(num_ghost, X.size(0), x_dim).mean(0) ).detach()
+
     # Make target
-    #Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2/dt
-    Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2
-    #Loss = (Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) - Uold)**2/(dt**2)
+    Loss = SquaredError(Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) + force, Uold)
 
     return Loss
 
@@ -260,8 +330,10 @@ def Heat(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **
 
     Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, dt)
 
+    force = dt/2 *( forcing(X) + forcing(Xnew).reshape(num_ghost, X.size(0), x_dim).mean(0) ).detach()
+
     # Make target
-    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0), Uold)
+    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) + force, Uold)
 
     return Loss
 

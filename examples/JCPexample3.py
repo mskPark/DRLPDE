@@ -27,14 +27,14 @@ output_dim = 3
 # Steady or Unsteady
 t_dim = 0
 if t_dim:
-    t_range = [[0.0, 1.0]]
+    t_range = [[]]
 else:
     t_range = [ [] ]
 
 # Hyperparameters
 hyper_dim = 0
 if hyper_dim:
-    hyper_range = [[0.0, 1.0], [1.0, 5.0]]
+    hyper_range = [[], []]
 else:
     hyper_range = [ [] ]
 

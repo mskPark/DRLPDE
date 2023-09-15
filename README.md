@@ -9,7 +9,7 @@ In a jupyter notebook, import the main file by using the line
 
 `import DRLPDE.main`
 
-and run the program by calling the name of the .py file
+and run the program by calling the name of the .py file (excluding the .py extension)
 
 `model = DRLPDE.main.solvePDE('my_pde')`
 
