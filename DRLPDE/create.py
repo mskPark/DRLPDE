@@ -156,15 +156,14 @@ class theDomain:
         # Approximates volume of domain through Monte Carlo Integration
         # Sample from boundingbox B, estimate volume of domain D as
         # vol(D) = vol(B)*(fraction of samples inside D)
-        # standard error = sqrt( vol(B)**2 (1-frac)*frac)/(N-1) ) ~~ volB/2sqrt(N) for (1-frac)frac maximized
-
-        volB = 1.0
-
+        # error estimate = sqrt( vol(B)**2 (1-frac)*frac)/(N-1) ) ~~ volB/2sqrt(N) for (1-frac)frac maximized
+        
         # Calculate volume of boundingbox
+        volB = 1.0
         for ii in range(len(self.boundingbox)):
             volB = volB*(self.boundingbox[ii][1] - self.boundingbox[ii][0])
 
-        # Calculate number needed to get std within tol (approximate)
+        # Calculate number needed to get error estimate within tol
         num = np.int( (volB/std/2)**2 ) 
         X = torch.empty( (num, len(self.boundingbox)) )
 
@@ -182,9 +181,15 @@ class theDomain:
         return volD
 
     def integrate(self, X, num, F):
-
+        # X argument kept for consistency
         integral = self.volume*torch.sum(F)/num
         return integral
+    
+    def error_estimate(self, X, num, F):
+
+        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+
+        return torch.sqrt(V)
 
 ### Periodic Boundary class
 class bdry_periodic:
@@ -463,6 +468,9 @@ class forError():
 
     def CalculateError(self, model, dev, numbatch):
         # Output: Total L2 error, Linf error
+
+        # TODO Include the error bars (variance)
+        #      Not sure how to calculate in batches
 
         squarederrors = np.zeros( (self.numtype,2) )
 

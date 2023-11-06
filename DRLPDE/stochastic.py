@@ -289,7 +289,7 @@ def Laplace(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, **v
     # Calculate exits and re-evaluate
     Xnew, Unew = exit_bc(X.repeat(num_ghost,1), Xnew, Unew, domain.exitflag, x_dim, tol)
 
-    force = dt/2 *( forcing(X) + forcing(Xnew).reshape(num_ghost, X.size(0), x_dim).mean(0) ).detach()
+    force = dt/2 *( forcing(X) + forcing(Xnew).reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) ).detach()
 
     # Make target
     Loss = SquaredError(Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) + force, Uold)
@@ -393,9 +393,11 @@ def unsteadyParabolic(X, model, domain, mu, x_dim, dt, num_batch, num_ghost, tol
 
 def walk(IntPoints, num, model, domain, dev, input_dim, input_range, x_dim, diffusion, dt, **var_train):
     
+    # TODO: Make it move in time as well
     X = IntPoints.location
     num = IntPoints.num_pts
 
+    Xnew = X.clone().detach()
     # Evaluate at X
     Uold = model(X.requires_grad_())
     
@@ -404,16 +406,16 @@ def walk(IntPoints, num, model, domain, dev, input_dim, input_range, x_dim, diff
     
     # Move walkers
     # TODO: Implement higher order SDE simulation
-    Xnew = X[:,:x_dim] - dt*Uold + torch.sqrt(2*dt*mu)*torch.randn((num, x_dim), device=X.device, requires_grad=False)
+    Xnew[:,:x_dim] = X[:,:x_dim] - dt*Uold + torch.sqrt(2*dt*mu)*torch.randn((num, x_dim), device=X.device, requires_grad=False)
 
     # Periodic boundaries
     if any(domain.periodic):
-        Xnew = exit_periodic(Xnew[:,:x_dim], domain.periodic)
+        Xnew[:,:x_dim] = exit_periodic(Xnew[:,:x_dim], domain.periodic)
 
     for bdry in domain.checkinside:
         outside_bdry = bdry.distance(Xnew[:,:x_dim]) < 0
         if any(outside_bdry):
-            Xnew[outside_bdry,:x_dim] = IntPoints.generate_points(torch.sum(outside_bdry), input_dim, input_range, domain).to(dev)
+            Xnew[outside_bdry,:] = IntPoints.generate_points(torch.sum(outside_bdry), input_dim, input_range, domain).to(dev)
     
     return Xnew.detach()
 

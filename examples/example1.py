@@ -1,9 +1,11 @@
 ###
 ### Example 1: Harmonic function
-###                 u(x,y) = 5.1*( x - 0.87 )^2 - 5.1*( y + 0.34 )^2
+###                 u(x,y) = 3.1*( x + 0.2 )^2 - 3.1*( y + 0.25 )^2
 ###            on a polar region 
-###                 r = 0.72*cos^5(theta) + 1.2
+###                 r =  0.375*cos^5(theta) + 0.5
 ###
+### Area: 0.894119
+### Length: 3.7286
 
 import torch
 import math
@@ -15,10 +17,9 @@ collect_error = True
 num_error = 2**15
 # TODO: Decide num_error automatically based on tolerance
 
-if collect_error:
-    def true_fun(X):
-        ubdry = 5.1*( X[:,0] - 0.87 )**2 - 5.1*( X[:,1] + 0.34 )**2
-        return ubdry[:,None]
+def true_fun(X):
+    ubdry = 3.1*( X[:,0] + 0.2 )**2 - 3.1*( X[:,1] + 0.25 )**2
+    return ubdry[:,None]
 
 ############## Save model and/or Load model ##############
 
@@ -29,14 +30,14 @@ output_dim = 1
 # Steady or Unsteady
 t_dim = 0
 if t_dim:
-    t_range = [[0.0, 1.0]]
+    t_range = [[]]
 else:
     t_range = [ [] ]
 
 # Hyperparameters
 hyper_dim = 0
 if hyper_dim:
-    hyper_range = [[0.0, 1.0], [1.0, 5.0]]
+    hyper_range = [[]]
 else:
     hyper_range = [ [] ]
 
@@ -71,20 +72,20 @@ def reaction(X):
 # Use pytorch expressions to make boundary and initial conditions 
 
 def bdry_con(X):
-    ubdry = 5.1*( X[:,0] - 0.87 )**2 - 5.1*( X[:,1] + 0.34 )**2
+    ubdry = 3.1*( X[:,0] + 0.2 )**2 - 3.1*( X[:,1] + 0.25 )**2
     return ubdry[:,None]
 
 
 #################  Make the domain  #######################
 
-boundingbox = [ [-1.0, 2.0], [-1.5, 1.5] ]
+boundingbox = [ [-0.4, 0.9], [-0.65, 0.65] ]
 
 def polar_eq(theta):
-    r = 0.72*( torch.cos(theta)**5) + 1.2
+    r = 0.375*( torch.cos(theta)**5) + 0.5
     return r
 
 def dr(theta):
-    dr = -5*0.72*( torch.cos(theta)**4 )*torch.sin(theta)
+    dr = -5*0.375*( torch.cos(theta)**4 )*torch.sin(theta)
     return dr
 
 polar = {'type':'polar',
@@ -92,9 +93,6 @@ polar = {'type':'polar',
          'derivative': dr,
          'boundary_condition': bdry_con}
 
-box = { 'type': 'box',
-        'xinterval': [ 0.0, 1.0],
-        'yinterval': [-1.0, 1.0]}
 
 list_of_walls = [polar]
 list_of_periodic_ends =[]

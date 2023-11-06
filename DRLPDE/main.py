@@ -196,7 +196,6 @@ def solvePDE(parameters='', **solver):
     ### Problem Parameters
     problem_parameters = define_problem_parameters(parameters, solver_parameters)
 
-    # TODO Maybe get rid of this
     trainingsteps = int(solver_parameters['trainingsteps'])
     num = solver_parameters['numpts']
     numbatch = solver_parameters['numbatch']
@@ -206,7 +205,7 @@ def solvePDE(parameters='', **solver):
     importance_sampling = solver_parameters['importance_sampling']
     reschedule_every = solver_parameters['reschedule_every']
 
-    collect_losses = solver_parameters['collect_losses']
+    #collect_losses = solver_parameters['collect_losses']
 
     print_every = round(trainingsteps/10)
 
@@ -222,27 +221,26 @@ def solvePDE(parameters='', **solver):
     Points = create.thePoints(num, Domain, model, problem_parameters, solver_parameters, dev)
 
     # Squared losses
+    #   trainingsteps x region x type
     # squaredlosses[:, :, 0] = L2 squared loss
     # squaredlosses[:, :, 1] = Linf squared loss
-
-    
     squaredlosses = np.ones((trainingsteps, Points.numtype, 2))
 
-    # TODO Collect errors
+    # Squared errors
+    #   trainingsteps x region x type
+    # squarederrors[:,:,0] = L2 squared error
+    # squarederrors[:,:,1] = Linf squared error
     collect_error = problem_parameters['error']['collect_error']
     if collect_error:
         squarederrors = np.ones((trainingsteps, Points.numtype, 2))
-        ErrorPoints = create.forError(problem_parameters['error']['num_error'],
-                                      Domain,
-                                      problem_parameters,
-                                      dev)
-        squarederrors[0,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
+        # TODO Variance of squarederror
+        ErrorPoints = create.forError(problem_parameters['error']['num_error'], Domain, problem_parameters, dev)
 
     # Train once
     squaredlosses[0,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[0,:,:])
 
     if collect_error:
-        squarederrors[1,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
+        squarederrors[0,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
 
     # Continue training
     start_time = time.time()
@@ -251,8 +249,8 @@ def solvePDE(parameters='', **solver):
         do_reschedule = step % reschedule_every == 0
         do_resample = step % resample_every == 0
 
-        if collect_loss:
-            squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
+        #if collect_loss:
+        squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
         
         if collect_error:
             squarederrors[step,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
@@ -274,11 +272,6 @@ def solvePDE(parameters='', **solver):
         if step % print_every == 0:
             current_time = time.time() - start_time
             print('step = {0} of {1}, Elapsed Time:{2:2.0f} min, Time to Go:{3:2.0f} min'.format(step, trainingsteps, current_time/60, current_time*(trainingsteps - step)/step/60))
-    
-
-    # Organize and export losses and errors
-    # TODO
-    # collect_losses[:,ii] = [ L2loss of region ii, Linfloss of region ii ]
     
     # Save losses and errors
     with open('experiments/' + solver_parameters['savemodel'] + '_losses.pickle', 'wb' ) as handle:

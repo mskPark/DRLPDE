@@ -88,6 +88,10 @@ class ring:
     def integrate(self, X, num, F):
         integral = self.measure*torch.sum(F)/num
         return integral
+    
+    def error_estimate(self, X, num, F):
+        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        return np.sqrt(V)
        
 class line:
     ### Class structure for a line boundary
@@ -118,6 +122,10 @@ class line:
     def integrate(self, X, num, F):
         integral = self.measure*torch.sum(F)/num
         return integral
+    
+    def error_estimate(self, X, num, F):
+        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        return np.sqrt(V)
 
 class polar:
 
@@ -163,6 +171,9 @@ class polar:
         integral = 2*math.pi*torch.sum( F*torch.sqrt(self.polar(theta)**2 + self.dr(theta)**2) )/num
         return integral
     
+    def error_estimate(self, X, num, F):
+        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        return np.sqrt(V)
 
 
 # TODO
@@ -400,9 +411,17 @@ class sphere:
     
     def integrate(self, X, num, F):
         theta = torch.atan2( X[:,1], X[:,0])[:,None]
-        integral = 2*math.pi**2*self.radius**2*torch.sum( F*torch.sin(theta) )/num
+
+        ### This integral is causing problems
+        #integral = 2*(math.pi**2)*(self.radius**2)*torch.sum( torch.sin(theta)*F )/num
+
+        integral = torch.sum( F )/num
         return integral
 
+    def error_estimate(self, X, num, F):
+        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        return np.sqrt(V)
+    
 class cylinder:
     ### Class structure for inside a cylindrical shell
     ### Centre: One end of the cylinder
@@ -445,6 +464,10 @@ class cylinder:
         integral = self.measure*torch.sum(F)/num
         return integral
 
+    def error_estimate(self, X, num, F):
+        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        return np.sqrt(V)
+    
 # TODO
 class plane:
     
