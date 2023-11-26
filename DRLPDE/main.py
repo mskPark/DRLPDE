@@ -28,7 +28,7 @@ def define_solver_parameters(**solver):
                          'nn_size':{'depth':4,
                                     'width':64},
                          'method': {'type':'stochastic',
-                                      'dt':1e-4,
+                                      'dt':5e-4,
                                       'num_ghost':64,
                                       'tol': 1e-6},
                          'learningrate': 1e-3,

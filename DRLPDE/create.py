@@ -683,3 +683,30 @@ class MeshPoints(torch.utils.data.Dataset):
     
     def __getitem__(self, index):
         return self.location[index,:], self.value[index,:], index
+
+
+class PlotPoints():
+    
+    # Only works for 2D
+    # Pick a resolution
+
+    def __init__(self, domain):
+        
+        self.points = self.generate_points(domain)
+
+    def generate_points(self, domain):
+        
+        X = torch.cartesian_prod( torch.linspace(domain.boundingbox[0][0], domain.boundingbox[0][1], 64),
+                                  torch.linspace(domain.boundingbox[1][0], domain.boundingbox[1][1], 64))
+        
+        outside = torch.zeros( X.size(0), dtype=torch.bool)
+        for wall in domain.checkinside:
+            outside += wall.distance(X) < 0
+
+        # Append boundary points
+        Xbdry= self.bdry.make_points(64)
+
+        Xpoints = torch.cat( (X[~outside,:],Xbdry), dim=0)
+
+        return Xpoints
+    

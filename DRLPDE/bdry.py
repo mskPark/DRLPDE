@@ -13,6 +13,8 @@ import numpy as np
 # if any(outside):
 #     Xwall[outside,:] = self.make_points(torch.sum(outside), other_bdrys)
 
+### TODO: make_points option linspace instead of rand
+
 # 
 class circle:
     ### Class structure for a circle boundary, the outside being the domain
@@ -28,6 +30,14 @@ class circle:
     def make_points(self, num):
         
         theta = 2*math.pi*torch.rand(num)
+
+        Xwall = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
+                             self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
+
+        return Xwall
+    
+    def make_grid_points(self,num):
+        theta = torch.linspace(0, 2*math.pi, num)
 
         Xwall = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                              self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
@@ -51,6 +61,10 @@ class circle:
     def integrate(self, X, num, F):
         integral = self.measure*torch.sum(F)/num
         return integral
+    
+    def error_estimate(self, X, num, F):
+        V = self.measure/(num-1) * ( self.measure*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        return np.sqrt(V)
         
 class ring:
     ### Class structure for a circle boundary, the inside being the domain
@@ -69,6 +83,14 @@ class ring:
 
         Xwall = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
                              self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
+        return Xwall
+    
+    def make_grid_points(self, num):
+        theta = torch.linspace(0, 2*math.pi, num)
+
+        Xwall = torch.stack((self.radius*torch.cos(theta) + self.centre[0],
+                             self.radius*torch.sin(theta) + self.centre[1]),dim=1 )
+
         return Xwall
             
     def distance(self, X):
@@ -90,7 +112,7 @@ class ring:
         return integral
     
     def error_estimate(self, X, num, F):
-        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        V = self.measure/(num-1) * ( self.measure*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
         return np.sqrt(V)
        
 class line:
@@ -111,6 +133,10 @@ class line:
         
         return Xwall
     
+    def make_grid_points(self, num):
+        Xwall = torch.linspace(self.endpoints[0], self.endpoints[1], num)[:,None] + self.endpoints[0]
+        return Xwall
+    
     def distance(self, X):
         ### Signed distance to boundary
         ### positive = inside domain
@@ -124,7 +150,7 @@ class line:
         return integral
     
     def error_estimate(self, X, num, F):
-        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        V = self.measure/(num-1) * ( self.measure*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
         return np.sqrt(V)
 
 class polar:
@@ -142,6 +168,15 @@ class polar:
     def make_points(self, num):
         
         theta = 2*math.pi*torch.rand(num)
+        r = self.polar(theta)
+
+        Xwall = torch.stack((r*torch.cos(theta),
+                             r*torch.sin(theta)),dim=1 )
+
+        return Xwall
+    
+    def make_grid_points(self, num):
+        theta = torch.linspace(0, 2*math.pi, num)
         r = self.polar(theta)
 
         Xwall = torch.stack((r*torch.cos(theta),
@@ -172,7 +207,7 @@ class polar:
         return integral
     
     def error_estimate(self, X, num, F):
-        V = self.volume/(num-1) * ( self.volume*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        V = self.measure/(num-1) * ( self.measure*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
         return np.sqrt(V)
 
 
@@ -194,14 +229,118 @@ class wedge:
 # TODO
 class type1:
     ### (x, g(x)), range over x
-    ### Need to know whether its bottom or top
-    pass
+    ### normal = 1 (inside is above) or -1 (inside is below)
+
+    def __init__(self, xrange, yfun, dydx, normal, bc):
+        self.xrange = torch.tensor(xrange)
+        self.yfun = yfun
+        self.dydx = dydx
+        self.normal = normal
+        
+        self.measure = self.calculatelength()
+        self.dim = 1
+        self.bc = bc
+
+    def make_points(self, num):
+        
+        x = (self.xrange[1] - self.xrange[0])*torch.rand(num) + self.xrange[0]
+        y = self.yfun(x)
+
+        Xwall = torch.stack((x, y),dim=1 )
+
+        return Xwall
+    
+    def make_grid_points(self, num):
+        
+        x = torch.linspace(self.xrange[0], self.xrange[1], num )
+        y = self.yfun(x)
+
+        Xwall = torch.stack((x, y),dim=1 )
+
+        return Xwall
+            
+    def distance(self, X):
+        ### Signed distance to boundary
+        ### positive = inside domain
+        ### negative = outside domain
+
+        distance = self.normal*(X[:,1] - self.yfun(X[:,0]))
+
+        return distance
+
+    def calculatelength(self):
+        num = int(1e3)
+        x = (self.xrange[1] - self.xrange[0])*torch.rand(num) + self.xrange[0]
+        L = torch.mean( torch.sqrt(1 + self.dydx(x)**2))
+        return L
+
+    def integrate(self, X, num, F):
+        
+        integral = torch.sum( F*torch.sqrt(1 + self.dydx(X[:,0])**2) )/num
+        return integral
+    
+    def error_estimate(self, X, num, F):
+        V = self.measure/(num-1) * ( self.measure*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        return np.sqrt(V)
+    
 
 # TODO
 class type2:
     ### (h(y), y), range over y
-    ### Need to know whether its left or right
-    pass
+    ### normal = 1 (inside is right) or -1 (inside is left)
+
+    def __init__(self, yrange, xfun, dxdy, normal, bc):
+        self.yrange = torch.tensor(yrange)
+        self.xfun = xfun
+        self.dxdy = dxdy
+        self.normal = normal
+        
+        self.measure = self.calculatelength()
+        self.dim = 1
+        self.bc = bc
+
+    def make_points(self, num):
+        
+        y = (self.yrange[1] - self.yrange[0])*torch.rand(num) + self.yrange[0]
+        x = self.xfun(y)
+
+        Xwall = torch.stack((x, y),dim=1 )
+
+        return Xwall
+    
+    def make_grid_points(self, num):
+        
+        y = torch.linspace(self.yrange[0], self.yrange[1], num )
+        x = self.xfun(y)
+
+        Xwall = torch.stack((x, y),dim=1 )
+
+        return Xwall
+            
+    def distance(self, X):
+        ### Signed distance to boundary
+        ### positive = inside domain
+        ### negative = outside domain
+
+        distance = self.normal*(X[:,0] - self.xfun(X[:,1]))
+
+        return distance
+
+    def calculatelength(self):
+        num = int(1e3)
+        y = (self.yrange[1] - self.yrange[0])*torch.rand(num) + self.yrange[0]
+        L = torch.mean( torch.sqrt(1 + self.dxdy(y)**2))
+        return L
+
+    def integrate(self, X, num, F):
+        
+        integral = torch.sum( F*torch.sqrt(1 + self.dxdy(X[:,1])**2) )/num
+        return integral
+    
+    def error_estimate(self, X, num, F):
+        V = self.measure/(num-1) * ( self.measure*self.integrate(X, num, F**2) - self.integrate(X, num, F)**2 )
+        return np.sqrt(V)
+    
 
 # 2-Dimensional Grid
 
