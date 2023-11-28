@@ -81,7 +81,7 @@ def inlet_con(X):
 #     Boundary condition is given by a function using pytorch expressions
 
 
-boundingbox = [ [0.0, 4.0*L_height], [-L_height,L_height] ]
+boundingbox = [ [0.0, 5.0*L_height], [-L_height,L_height] ]
 
 disk1 = {   'type':'disk',
             'centre': [L_height,0.0],
@@ -125,17 +125,17 @@ wall_left = {'type':'line',
 wall_top = { 'type':'line',
              'point': [0.0, L_height],
              'normal':  [0.0, -1.0],
-             'endpoints': [ [0.0, L_height], [4.0*L_height, L_height] ],
+             'endpoints': [ [0.0, L_height], [5.0*L_height, L_height] ],
              'boundary_condition': bdry_con }
 
 wall_bot = {'type':'line',
              'point': [0.0, -L_height],
              'normal': [0.0, 1.0],
-             'endpoints': [ [0.0, -L_height], [4.0*L_height, -L_height] ],
+             'endpoints': [ [0.0, -L_height], [5.0*L_height, -L_height] ],
              'boundary_condition': bdry_con }
 
 wall_right = {'type':'line',
-             'point': [4.0*L_height, -L_height],
+             'point': [5.0*L_height, -L_height],
              'normal': [-1.0, 0.0],
              'endpoints': [ [5.0*L_height, -L_height], [5.0*L_height, L_height] ],
              'boundary_condition': inlet_con }
