@@ -280,3 +280,20 @@ def RK4(xt, u):
 
     xt1 = xt0 + h/6 * (k1 + k2 + k3 + k4)
     return xt1
+
+def make_video():
+
+    plt.savefig('foo.png')
+    
+    img_array = []
+    for filename in ('C:/New folder/Images/*.jpg'):
+        img = cv2.imread(filename)
+        height, width, layers = img.shape
+        size = (width,height)
+        img_array.append(img)
+    
+    out = cv2.VideoWriter('fancyname.avi',cv2.VideoWriter_fourcc(*'DIVX'), 15, size)
+    
+    for i in range(len(img_array)):
+        out.write(img_array[i])
+    out.release()
