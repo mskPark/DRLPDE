@@ -4,7 +4,7 @@ import numpy as np
 
 import scipy.special as bessel
 
-v0 = 1.0
+v0 = 4.0
 
 ############## Collect Errors ######################
 
@@ -18,7 +18,7 @@ output_dim = 2
 # Steady or Unsteady
 t_dim = 1
 if t_dim:
-    t_range = [[0.0, 2.0]]
+    t_range = [[0.0, 3.0]]
 else:
     t_range = [ [] ]
 
@@ -32,7 +32,7 @@ else:
 ################# PDE Coefficients ########################
 
 # PDE type:
-pde_type = 'NavierStokes'
+pde_type = 'viscousBurgers'
 
 # Diffusion coefficient
 def diffusion(X):
@@ -48,7 +48,7 @@ def forcing(X):
 # Use pytorch expressions to make boundary and initial conditions 
 
 def bdry_con(X):
-    u = v0*X[:,2]**2*torch.stack( ( -X[:,1], X[:,0] ), dim=1)
+    u = v0*(torch.sin(math.pi*X[:,2])**2)[:,None]*torch.stack( ( -X[:,1], X[:,0] ), dim=1)
     return u
 
 def init_con(X):
@@ -79,31 +79,31 @@ disk2 = {  'type':'disk',
             'boundary_condition': init_con }
 
 circle3 = { 'type':'circle',
-            'centre':[-0.7071, -0.7071],
+            'centre':[-0.3535, -0.3535],
             'radius': 0.25,
             'endpoints':[],
             'boundary_condition': init_con }
 
 disk3 = {  'type':'disk',
-            'centre':[-0.7071, -0.7071],
+            'centre':[-0.3535, -0.3535],
             'radius': 0.25,
             'endpoints':[],
             'boundary_condition': init_con }
 
 circle4 = { 'type':'circle',
-            'centre':[0.7071, -0.7071],
+            'centre':[0.3535, -0.3535],
             'radius': 0.25,
             'endpoints':[],
             'boundary_condition': init_con }
 
 disk4 = {  'type':'disk',
-            'centre':[0.7071, -7071],
+            'centre':[0.3535, -0.3535],
             'radius': 0.25,
             'endpoints':[],
             'boundary_condition': init_con }
             
-list_of_walls = [ring1, circle2, circle3, circle4]
+list_of_walls = [ring1]
 list_of_periodic_ends =[]
-solid_walls = [disk2, disk3, disk4]
+solid_walls = []
 inlet_outlet = []
 mesh = []
