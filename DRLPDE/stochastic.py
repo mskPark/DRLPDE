@@ -330,10 +330,10 @@ def Heat(X, model, domain, x_dim, diffusion, forcing, dt, num_ghost, tol, ic, **
 
     Xnew, Unew = exit_ic(X.repeat(num_ghost,1), Xnew, Unew, ic, x_dim, dt)
 
-    force = dt/2 *( forcing(X) + forcing(Xnew).reshape(num_ghost, X.size(0), x_dim).mean(0) ).detach()
+    #force = dt/2 *( forcing(X) + forcing(Xnew).reshape(num_ghost, X.size(0), x_dim).mean(0) ).detach()
 
     # Make target
-    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0) + force, Uold)
+    Loss = SquaredError( Unew.detach().reshape(num_ghost, X.size(0), Uold.size(1)).mean(0), Uold)
 
     return Loss
 

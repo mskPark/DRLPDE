@@ -48,7 +48,7 @@ def forcing(X):
 # Use pytorch expressions to make boundary and initial conditions 
 
 def bdry_con(X):
-    u = v0*(torch.sin(math.pi*X[:,2])**2)[:,None]*torch.stack( ( -X[:,1], X[:,0] ), dim=1)
+    u = v0*torch.sin(X[:,2,None])*torch.stack( ( -X[:,1], X[:,0] ), dim=1)
     return u
 
 def init_con(X):
@@ -102,8 +102,8 @@ disk4 = {  'type':'disk',
             'endpoints':[],
             'boundary_condition': init_con }
             
-list_of_walls = [ring1]
+list_of_walls = [ring1, circle2]
 list_of_periodic_ends =[]
-solid_walls = []
+solid_walls = [disk2]
 inlet_outlet = []
 mesh = []
