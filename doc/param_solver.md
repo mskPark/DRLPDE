@@ -2,6 +2,8 @@
 
 ## Walker and Boundary point Parameters
 
-
+TODO
 
 ## Deep Learning Parameters
+
+TODO
