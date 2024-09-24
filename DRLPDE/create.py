@@ -164,7 +164,7 @@ class theDomain:
             volB = volB*(self.boundingbox[ii][1] - self.boundingbox[ii][0])
 
         # Calculate number needed to get error estimate within tol
-        num = np.int( (volB/std/2)**2 ) 
+        num = int( (volB/std/2)**2 ) 
         X = torch.empty( (num, len(self.boundingbox)) )
 
         # Uniformly sample from boundingbox
@@ -340,7 +340,7 @@ class thePoints:
                     jj = jj[kk,None]
 
                 if max > Linfloss:
-                    max_index = index[jj]
+                    max_index = index[jj.cpu()]
                     Linfloss = max
                 else:
                     max_index = index[0,None]
@@ -356,7 +356,10 @@ class thePoints:
 
                 # Collect gradients on L2loss of each batch
                 (self.weight[ii]*L2loss_batch).backward()
-            losses[ii] = [L2loss.data.cpu().numpy(), Linfloss.data.cpu().numpy()]
+
+                # model.parameters().grad
+
+            losses[ii,0], losses[ii,1] = L2loss.data.cpu().numpy(), Linfloss.data.cpu().numpy()
 
         # Step for L2 optimization
         self.L2optimizers.step()

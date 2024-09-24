@@ -23,10 +23,10 @@ class IncompressibleNN(nn.Module):
         
         modules = []
         modules.append(nn.Linear(self.input_dim, width))
-        modules.append(nn.Tanh())
+        modules.append(nn.GELU())
         for i in range(depth - 1):
             modules.append(nn.Linear(width, width))
-            modules.append(nn.Tanh())
+            modules.append(nn.GELU())
         modules.append(nn.Linear(width, self.dim_out))
                        
         self.sequential_model = nn.Sequential(*modules)
@@ -75,7 +75,7 @@ class VelVecPot2D(nn.Module):
         modules.append(nn.Linear(self.input_dim, width))
         for i in range(depth - 1):
             modules.append(nn.Linear(width, width))
-            modules.append(nn.Tanh())
+            modules.append(nn.GELU())
         modules.append(nn.Linear(width, self.dim_out))
                        
         self.sequential_model = nn.Sequential(*modules)
@@ -124,7 +124,7 @@ class VelVecPot3D(nn.Module):
         modules.append(nn.Linear(self.input_dim, depth))
         for i in range(width - 1):
             modules.append(nn.Linear(depth, depth))
-            modules.append(nn.Tanh())
+            modules.append(nn.GELU())
         modules.append(nn.Linear(depth, self.dim_out))
                        
         self.sequential_model = nn.Sequential(*modules)
@@ -166,7 +166,7 @@ class VelPreVecPot2D(nn.Module):
         modules.append(torch.nn.Linear(self.input_dim, depth))
         for i in range(width - 1):
             modules.append(torch.nn.Linear(depth, depth))
-            modules.append(torch.nn.Tanh())
+            modules.append(torch.nn.GELU())
         modules.append(torch.nn.Linear(depth, self.dim_out))
                        
         self.sequential_model = torch.nn.Sequential(*modules)
@@ -206,7 +206,7 @@ class VelPreVecPot3D(nn.Module):
         modules.append(torch.nn.Linear(self.input_dim, depth))
         for i in range(width - 1):
             modules.append(torch.nn.Linear(depth, depth))
-            modules.append(torch.nn.Tanh())
+            modules.append(torch.nn.GELU())
         modules.append(torch.nn.Linear(depth, self.dim_out))
                        
         self.sequential_model = torch.nn.Sequential(*modules)
@@ -249,10 +249,10 @@ class FeedForwardNN(nn.Module):
         
         modules = []
         modules.append(nn.Linear(self.input_dim, width))
-        modules.append(nn.Tanh())
+        modules.append(nn.GELU())
         for i in range(depth - 1):
             modules.append(nn.Linear(width, width))
-            modules.append(nn.Tanh())
+            modules.append(nn.GELU())
         modules.append(nn.Linear(width, output_dim))
         
         self.sequential_model = nn.Sequential(*modules)
@@ -266,7 +266,7 @@ class ResidualBlock(nn.Module):
     def __init__(self):
         super(ResidualBlock,self).__init__()
         self.lin = nn.Linear(64,64)
-        self.activate = nn.Tanh()
+        self.activate = nn.GELU()
 
     def forward(self, x):
         temp = x
@@ -301,7 +301,7 @@ class ResNetNN(nn.Module):
 
         self.output_dim = output_dim
         
-        self.activate = nn.Tanh()
+        self.activate = nn.GELU()
         self.identity = nn.Identity()
 
         self.block1 = self.make_block()
@@ -316,7 +316,7 @@ class ResNetNN(nn.Module):
     def make_block(self):
         block = []
         block.append(nn.Linear(self.width, self.width))
-        block.append(nn.Tanh())
+        block.append(nn.GELU())
         return nn.Sequential(*block)
 
     def forward(self, x):
@@ -350,7 +350,7 @@ class ResNetIncompressible(nn.Module):
         self.depth = depth
         self.width = width
         
-        self.activate = nn.Tanh()
+        self.activate = nn.GELU()
         self.identity = nn.Identity()
 
         self.block1 = self.make_block()
@@ -365,7 +365,7 @@ class ResNetIncompressible(nn.Module):
     def make_block(self):
         block = []
         block.append(nn.Linear(self.width, self.width))
-        block.append(nn.Tanh())
+        block.append(nn.GELU())
         return nn.Sequential(*block)
 
     def curl(self, a, x):

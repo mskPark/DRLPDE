@@ -31,7 +31,7 @@ def define_solver_parameters(**solver):
                                       'dt':5e-4,
                                       'num_ghost':64,
                                       'tol': 1e-6},
-                         'learningrate': 1e-3,
+                         'learningrate': 3e-4,
                          'interior_weight':1e0,
                          'bdry_weight': 1e-1,
                          'reschedule_every': 1.1,
@@ -226,11 +226,15 @@ def solvePDE(parameters='', **solver):
     # squaredlosses[:, :, 1] = Linf squared loss
     squaredlosses = np.ones((trainingsteps, Points.numtype, 2))
 
+    # Collect Gradients of optimization
+    #   Each weight in the model: Collect model.parameters.grad
+
     # Squared errors
     #   trainingsteps x region x type
     # squarederrors[:,:,0] = L2 squared error
     # squarederrors[:,:,1] = Linf squared error
     collect_error = problem_parameters['error']['collect_error']
+
     if collect_error:
         squarederrors = np.ones((trainingsteps, Points.numtype, 2))
         # TODO Variance of squarederror
@@ -238,6 +242,7 @@ def solvePDE(parameters='', **solver):
 
     # Train once
     squaredlosses[0,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[0,:,:])
+
 
     if collect_error:
         squarederrors[0,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
