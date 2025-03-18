@@ -65,24 +65,24 @@ def reaction(X):
 
 def bdry_con(X):
     r = X[:,0]**2 + X[:,1]**2
-    ubdry = 2.0*(1 - r)*torch.cos(torch.sqrt(r))
+    ubdry = 2.0*(0.5 - r)*torch.cos(torch.sqrt(r))
     return ubdry[:,None]
 
 def init_con(X):
     r = X[:,0]**2 + X[:,1]**2
-    uinit = 2.0*(1 - r)*torch.cos(torch.sqrt(r))
+    uinit = 2.0*(0.5 - r)*torch.cos(torch.sqrt(r))
     return uinit[:,None]
 
 #################  Make the domain  #######################
 
-boundingbox = [ [-1.6, 1.6], [-0.8, 0.8] ]
+boundingbox = [ [-0.8, 0.8], [-1.6, 1.6] ]
 
 def polar_eq(theta):
-    r = torch.cos(theta)**2 + 0.5
+    r = torch.sin(theta)**2 + 0.5
     return r
 
 def dr(theta):
-    dr = -2.0*torch.cos(theta)*torch.sin(theta)
+    dr = 2.0*torch.cos(theta)*torch.sin(theta)
     return dr
 
 polar = {'type':'polar',
