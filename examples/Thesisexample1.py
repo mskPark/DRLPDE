@@ -15,9 +15,9 @@ x_dim = 2
 output_dim = 2
 
 # Steady or Unsteady
-t_dim = 0
+t_dim = 1
 if t_dim:
-    t_range = [[0.0, 1.0]]
+    t_range = [[0.0, 3.0]]
 else:
     t_range = [ [] ]
 
@@ -54,15 +54,23 @@ def forcing(X):
 # To make different boundary conditions for each boundary
 #     ensure the correct bdry_con is called when defining the boundaries
 
-def bdry_con(X):
+def ball_con(X):
+    u = torch.zeros( (X.size(0), output_dim), device=X.device)
+    return u
+
+def wall_con(X):
     u = torch.zeros( (X.size(0), output_dim), device=X.device)
     return u
 
 def inlet_con(X):
     u = torch.zeros( (X.size(0), output_dim), device=X.device)
     
-    u[:,0] = v0*(L_height - X[:,1])*(L_height + X[:,1])/(L_height**2)
+    u[:,0] = v0*(L_height - X[:,1])*(L_height + X[:,1])/(L_height**2)*torch.tanh(4*X[:,2])
 
+    return u
+
+def init_con(X):
+    u = torch.zeros( (X.size(0), output_dim), device=X.device)
     return u
 
 #################  Make the domain  #######################
@@ -87,34 +95,34 @@ disk1 = {   'type':'disk',
             'centre': [L_height,0.0],
             'radius': L_height/3.0,
             'endpoints': [],
-            'boundary_condition':bdry_con }
+            'boundary_condition':ball_con }
 
 disk2 = {   'type':'disk',
             'centre': [2.5*L_height,0.5*L_height],
             'radius': L_height/3.0,
             'endpoints': [],
-            'boundary_condition':bdry_con }
+            'boundary_condition':ball_con}
 
 disk3 = {   'type':'disk',
             'centre': [3.25*L_height,-0.5*L_height],
             'radius': L_height/3.0,
             'endpoints': [],
-            'boundary_condition':bdry_con }
+            'boundary_condition':ball_con }
 
 circle1 = {  'type':'circle',
              'centre': [L_height,0.0],
              'radius': L_height/3.0,
-             'boundary_condition':bdry_con}
+             'boundary_condition':ball_con}
 
 circle2 = {  'type':'circle',
              'centre': [2.5*L_height,0.5*L_height],
              'radius': L_height/3.0,
-             'boundary_condition':bdry_con}
+             'boundary_condition':ball_con}
 
 circle3 = {  'type':'circle',
              'centre': [3.25*L_height,-0.5*L_height],
              'radius': L_height/3.0,
-             'boundary_condition':bdry_con}
+             'boundary_condition':ball_con}
 
 wall_left = {'type':'line',
              'point': [0.0, -L_height],
@@ -126,13 +134,13 @@ wall_top = { 'type':'line',
              'point': [0.0, L_height],
              'normal':  [0.0, -1.0],
              'endpoints': [ [0.0, L_height], [5.0*L_height, L_height] ],
-             'boundary_condition': bdry_con }
+             'boundary_condition': wall_con }
 
 wall_bot = {'type':'line',
              'point': [0.0, -L_height],
              'normal': [0.0, 1.0],
              'endpoints': [ [0.0, -L_height], [5.0*L_height, -L_height] ],
-             'boundary_condition': bdry_con }
+             'boundary_condition': wall_con }
 
 wall_right = {'type':'line',
              'point': [5.0*L_height, -L_height],

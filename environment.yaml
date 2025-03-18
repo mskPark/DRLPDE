@@ -1,0 +1,18 @@
+# environment.yaml
+
+# For kernel crashes caused by Error 15
+#   delete libiomp5md.dll in C:\miniforge3\Library\bin
+
+name: drl-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - jupyter
+  - numpy=1.22.3
+  - matplotlib=3.5.1
+  - pip:
+    - torch==1.11.0+cu113
+  
+  

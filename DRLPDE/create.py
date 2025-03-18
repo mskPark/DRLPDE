@@ -243,8 +243,9 @@ class thePoints:
         threshold = 1e-1
         lr_decay = lambda x : 0.1
 
-        self.L2optimizers = torch.optim.Adam(model.parameters(), lr=learningrate)
-        self.Linfoptimizers = torch.optim.Adam(model.parameters(), lr=Linf_lr)
+        # 
+        self.L2optimizers = torch.optim.Adam(model.parameters(), lr=learningrate, amsgrad=True)
+        self.Linfoptimizers = torch.optim.Adam(model.parameters(), lr=Linf_lr, amsgrad=True)
 
         self.scheduler = torch.optim.lr_scheduler.MultiplicativeLR(self.L2optimizers, lr_lambda=lr_decay)
         self.lossthreshold = threshold

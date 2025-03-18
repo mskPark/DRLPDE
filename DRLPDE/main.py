@@ -185,10 +185,17 @@ def solvePDE(parameters='', **solver):
 
     ### Pytorch default datatype is float32, to change, uncomment the line below
     # torch.set_default_dtype(torch.float64)
-    
+
     # Use GPU if available
-    dev = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        dev = torch.device("cuda:0")
+        print("GPU in use")
+    else:
+        dev = "cpu"
+        print("GPU not available")
     torch.cuda.empty_cache()
+
+    print("Initializing parameters")
 
     ### Training Parameters
     solver_parameters = define_solver_parameters(**solver)
@@ -208,6 +215,8 @@ def solvePDE(parameters='', **solver):
     #collect_losses = solver_parameters['collect_losses']
 
     print_every = round(trainingsteps/10)
+
+    print("Instantiating model and domain")
 
     ### Neural Network
     model = define_neuralnetwork(problem_parameters, solver_parameters).to(dev)
@@ -239,17 +248,28 @@ def solvePDE(parameters='', **solver):
         squarederrors = np.ones((trainingsteps, Points.numtype, 2))
         # TODO Variance of squarederror
         ErrorPoints = create.forError(problem_parameters['error']['num_error'], Domain, problem_parameters, dev)
-
+    
     # Train once
+    start_time = time.time()
+    
     squaredlosses[0,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[0,:,:])
-
 
     if collect_error:
         squarederrors[0,:,:] = ErrorPoints.CalculateError(model, dev, numbatch)
 
+    # Train ten times to estimate
+    for step in range(1,10):
+        #if collect_loss:
+        squaredlosses[step,:,:] = Points.TrainL2LinfLoss(model, Domain, dev, numbatch, squaredlosses[step-1,:,:], importance_sampling)
+        
+    current_time = time.time() - start_time
+    print('Estimated Training Time:{:2.0f} min'.format(1.2*current_time*trainingsteps/step/60))
+
+    print("Begin training")
+
     # Continue training
-    start_time = time.time()
-    for step in range(1,trainingsteps):
+    
+    for step in range(10,trainingsteps):
         
         do_reschedule = step % reschedule_every == 0
         do_resample = step % resample_every == 0
@@ -273,7 +293,6 @@ def solvePDE(parameters='', **solver):
         if do_resample:
             Points.ResamplePoints(Domain, dev, problem_parameters)
 
-        # Print Progress
         if step % print_every == 0:
             current_time = time.time() - start_time
             print('step = {0} of {1}, Elapsed Time:{2:2.0f} min, Time to Go:{3:2.0f} min'.format(step, trainingsteps, current_time/60, current_time*(trainingsteps - step)/step/60))
